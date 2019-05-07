@@ -12,11 +12,7 @@ func main() {
 	subs := []kraken.Subscription{
 		{
 			Type: kraken.TICKER,
-			Pair: "XBT/USD",
-		},
-		{
-			Type: kraken.TICKER,
-			Pair: "XBT/EUR",
+			Pair: []string{"XBT/USD", "ETH/USD"},
 		},
 	}
 	client := transport.NewClient(subs)

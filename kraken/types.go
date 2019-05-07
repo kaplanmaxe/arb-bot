@@ -28,7 +28,7 @@ type SubscriptionT struct {
 
 type Subscription struct {
 	Type string
-	Pair string
+	Pair []string
 }
 
 // SubscribeRequest represents a request to subscribe to an event
@@ -51,8 +51,9 @@ type SubscribeRequest struct {
 
 // TickerResponse is a struct representing a response from the ticker event
 type TickerResponse struct {
-	Ask string
-	Bid string
+	ChannelID int
+	Ask       string
+	Bid       string
 }
 
 type SubscriptionResponse struct {
@@ -71,11 +72,11 @@ type ConnectionResponse struct {
 
 func (s *TickerResponse) UnmarshalJSON(msg []byte) error {
 	var tmp []map[string][]interface{}
-	err := json.Unmarshal(msg, &tmp)
+	json.Unmarshal(msg, &tmp)
 	if len(tmp) != 0 {
 		s.Ask = tmp[1]["a"][0].(string)
 		s.Bid = tmp[1]["b"][0].(string)
 	}
 
-	return err
+	return nil
 }

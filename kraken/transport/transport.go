@@ -3,6 +3,7 @@ package transport
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/url"
 	"os"
@@ -22,6 +23,7 @@ type Client struct {
 	conn                     *websocket.Conn
 	connResponseChannel      chan kraken.ConnectionResponse
 	subStatusResponseChannel chan kraken.SubscriptionResponse
+	tickerResponseChannel    chan kraken.TickerResponse
 }
 
 func NewClient(s []kraken.Subscription) *Client {
@@ -30,6 +32,7 @@ func NewClient(s []kraken.Subscription) *Client {
 		mtx:                      &sync.Mutex{},
 		connResponseChannel:      make(chan kraken.ConnectionResponse, 1),
 		subStatusResponseChannel: make(chan kraken.SubscriptionResponse, 1),
+		tickerResponseChannel:    make(chan kraken.TickerResponse),
 	}
 }
 
@@ -39,8 +42,11 @@ func (cl *Client) Connect() {
 
 	connCtx, connCancel := context.WithCancel(context.Background())
 	subStatusCtx, subStatusCancel := context.WithCancel(context.Background())
+	tickerCtx, tickerCancel := context.WithCancel(context.Background())
 	defer connCancel()
 	defer subStatusCancel()
+	defer tickerCancel()
+
 	cl.connect(connCtx)
 	defer cl.conn.Close()
 
@@ -56,14 +62,17 @@ func (cl *Client) Connect() {
 			cl.subscribe(subStatusCtx)
 		case res := <-cl.subStatusResponseChannel:
 			subs++
-			if subs == len(cl.Subscriptions)-1 {
+			if subs == len(cl.Subscriptions) {
 				subStatusCancel()
+				fmt.Println("ok")
+				cl.startTickerListener(tickerCtx)
 			}
 			// Minor race condition where we can't stop go routine fast enough
 			if res.Pair != "" {
 				log.Printf("%s subscribed to for pair %s on channel %d", res.Subscription.Name, res.Pair, res.ChannelID)
 			}
-
+		case res := <-cl.tickerResponseChannel:
+			log.Printf("Test: %#v", res)
 		case <-interrupt:
 			log.Println("interrupt")
 
@@ -100,7 +109,7 @@ func (cl *Client) connect(ctx context.Context) {
 			message, err := cl.readMessage()
 			if err != nil {
 				// TODO: fix
-				log.Println("read:", err)
+				log.Println("read2:", err, message)
 				return
 			}
 
@@ -108,7 +117,7 @@ func (cl *Client) connect(ctx context.Context) {
 			err = json.Unmarshal(message, &connResponse)
 			if err != nil {
 				// TODO: fix
-				log.Fatal("Unmarshall err", err)
+				log.Fatal("Unmarshall err2", err)
 			}
 
 			cl.connResponseChannel <- connResponse
@@ -126,7 +135,7 @@ func (cl *Client) subscribe(ctx context.Context) {
 	for _, sub := range cl.Subscriptions {
 		req := &kraken.SubscribeRequest{
 			Event:        "subscribe",
-			Pair:         []string{sub.Pair},
+			Pair:         sub.Pair,
 			Subscription: kraken.SubscriptionT{Name: sub.Type},
 		}
 		payload, err := json.Marshal(req)
@@ -140,12 +149,12 @@ func (cl *Client) subscribe(ctx context.Context) {
 	}
 
 	go func() {
-	cLoop:
+	Loop:
 		for {
 			message, err := cl.readMessage()
 			if err != nil {
 				// TODO: fix
-				log.Println("read:", err)
+				log.Println("read1:", err, message)
 				return
 			}
 
@@ -153,13 +162,44 @@ func (cl *Client) subscribe(ctx context.Context) {
 			err = json.Unmarshal(message, &subStatusResponse)
 			if err != nil {
 				// TODO: fix
-				log.Fatal("Unmarshall err", err)
+				log.Fatal("Unmarshall err1", err)
 			}
 			cl.subStatusResponseChannel <- subStatusResponse
 
 			select {
 			case <-ctx.Done():
-				break cLoop
+				break Loop
+			default:
+			}
+		}
+	}()
+}
+
+func (cl *Client) startTickerListener(ctx context.Context) {
+	go func() {
+	Loop:
+		for {
+			message, err := cl.readMessage()
+			if err != nil {
+				// TODO: fix
+				log.Println("read error, skipping")
+			}
+			if len(message) == 0 {
+				fmt.Println("skip")
+			}
+			var tickerResponse kraken.TickerResponse
+			err = json.Unmarshal(message, &tickerResponse)
+			if err != nil {
+				// TODO: fix
+				log.Fatal("Unmarshall err3", err, message)
+			}
+			if tickerResponse.Ask != "" {
+				cl.tickerResponseChannel <- tickerResponse
+			}
+
+			select {
+			case <-ctx.Done():
+				break Loop
 			default:
 			}
 		}
