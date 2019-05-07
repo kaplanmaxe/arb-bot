@@ -70,12 +70,19 @@ type ConnectionResponse struct {
 	Version      string `json:"version"`
 }
 
+// ChannelPairMap maps a channelid returned in the api to a specific pair
+type ChannelPairMap map[int]string
+
 func (s *TickerResponse) UnmarshalJSON(msg []byte) error {
+	// Hack for weird kraken response
+	var channel []int
+	json.Unmarshal(msg, &channel)
 	var tmp []map[string][]interface{}
 	json.Unmarshal(msg, &tmp)
 	if len(tmp) != 0 {
 		s.Ask = tmp[1]["a"][0].(string)
 		s.Bid = tmp[1]["b"][0].(string)
+		s.ChannelID = channel[0]
 	}
 
 	return nil

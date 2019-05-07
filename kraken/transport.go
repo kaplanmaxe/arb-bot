@@ -1,41 +1,47 @@
-package transport
+package kraken
 
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/url"
 	"os"
 	"os/signal"
 	"sync"
+	"time"
 
 	"github.com/gorilla/websocket"
-	"github.com/kaplanmaxe/cw-websocket/kraken"
+	"github.com/kaplanmaxe/cw-websocket/broker"
+	// "github.com/kaplanmaxe/cw-websocket/kraken"
 )
 
+// Client represents a new websocket client for Kraken
 type Client struct {
 	ConnectionID             uint64
 	Version                  string
-	Subscriptions            []kraken.Subscription
+	Subscriptions            []Subscription
 	responseCount            int
 	mtx                      *sync.Mutex
 	conn                     *websocket.Conn
-	connResponseChannel      chan kraken.ConnectionResponse
-	subStatusResponseChannel chan kraken.SubscriptionResponse
-	tickerResponseChannel    chan kraken.TickerResponse
+	connResponseChannel      chan ConnectionResponse
+	subStatusResponseChannel chan SubscriptionResponse
+	tickerResponseChannel    chan TickerResponse
+	channelPairMap           ChannelPairMap
 }
 
-func NewClient(s []kraken.Subscription) *Client {
+// NewClient returns a new instance of Client
+func NewClient(s []Subscription) *Client {
 	return &Client{
 		Subscriptions:            s,
 		mtx:                      &sync.Mutex{},
-		connResponseChannel:      make(chan kraken.ConnectionResponse, 1),
-		subStatusResponseChannel: make(chan kraken.SubscriptionResponse, 1),
-		tickerResponseChannel:    make(chan kraken.TickerResponse),
+		connResponseChannel:      make(chan ConnectionResponse, 1),
+		subStatusResponseChannel: make(chan SubscriptionResponse, 1),
+		tickerResponseChannel:    make(chan TickerResponse),
+		channelPairMap:           make(ChannelPairMap),
 	}
 }
 
+// Connect connects to the websocket api and sets connection details
 func (cl *Client) Connect() {
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
@@ -48,7 +54,6 @@ func (cl *Client) Connect() {
 	defer tickerCancel()
 
 	cl.connect(connCtx)
-	defer cl.conn.Close()
 
 	subs := 0
 	for {
@@ -64,24 +69,31 @@ func (cl *Client) Connect() {
 			subs++
 			if subs == len(cl.Subscriptions) {
 				subStatusCancel()
-				fmt.Println("ok")
 				cl.startTickerListener(tickerCtx)
 			}
 			// Minor race condition where we can't stop go routine fast enough
 			if res.Pair != "" {
+				cl.channelPairMap[res.ChannelID] = res.Pair
 				log.Printf("%s subscribed to for pair %s on channel %d", res.Subscription.Name, res.Pair, res.ChannelID)
 			}
 		case res := <-cl.tickerResponseChannel:
-			log.Printf("Test: %#v", res)
+			quote := broker.NewExchangeQuote("kraken", cl.channelPairMap[res.ChannelID], res.Ask)
+			log.Printf("Quote: %#v", quote)
 		case <-interrupt:
 			log.Println("interrupt")
-
+			defer connCancel()
+			defer subStatusCancel()
+			defer tickerCancel()
+			defer cl.conn.Close()
 			// Cleanly close the connection by sending a close message and then
 			// waiting (with timeout) for the server to close the connection.
 			err := cl.conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 			if err != nil {
 				log.Println("write close:", err)
 				return
+			}
+			select {
+			case <-time.After(time.Second):
 			}
 			return
 		}
@@ -113,7 +125,7 @@ func (cl *Client) connect(ctx context.Context) {
 				return
 			}
 
-			var connResponse kraken.ConnectionResponse
+			var connResponse ConnectionResponse
 			err = json.Unmarshal(message, &connResponse)
 			if err != nil {
 				// TODO: fix
@@ -133,10 +145,10 @@ func (cl *Client) connect(ctx context.Context) {
 func (cl *Client) subscribe(ctx context.Context) {
 	// TODO: subscribe all at once
 	for _, sub := range cl.Subscriptions {
-		req := &kraken.SubscribeRequest{
+		req := &SubscribeRequest{
 			Event:        "subscribe",
 			Pair:         sub.Pair,
-			Subscription: kraken.SubscriptionT{Name: sub.Type},
+			Subscription: SubscriptionT{Name: sub.Type},
 		}
 		payload, err := json.Marshal(req)
 		if err != nil {
@@ -158,7 +170,7 @@ func (cl *Client) subscribe(ctx context.Context) {
 				return
 			}
 
-			var subStatusResponse kraken.SubscriptionResponse
+			var subStatusResponse SubscriptionResponse
 			err = json.Unmarshal(message, &subStatusResponse)
 			if err != nil {
 				// TODO: fix
@@ -183,11 +195,9 @@ func (cl *Client) startTickerListener(ctx context.Context) {
 			if err != nil {
 				// TODO: fix
 				log.Println("read error, skipping")
+				return
 			}
-			if len(message) == 0 {
-				fmt.Println("skip")
-			}
-			var tickerResponse kraken.TickerResponse
+			var tickerResponse TickerResponse
 			err = json.Unmarshal(message, &tickerResponse)
 			if err != nil {
 				// TODO: fix

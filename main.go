@@ -1,20 +1,20 @@
 package main
 
 import (
-	"fmt"
+	"log"
 
 	"github.com/kaplanmaxe/cw-websocket/kraken"
-	"github.com/kaplanmaxe/cw-websocket/kraken/transport"
 )
 
 func main() {
-	fmt.Println("Hello world")
+	log.Print("Starting quote server")
 	subs := []kraken.Subscription{
 		{
 			Type: kraken.TICKER,
+			// TODO: why won't this work for only one pair?
 			Pair: []string{"XBT/USD", "ETH/USD"},
 		},
 	}
-	client := transport.NewClient(subs)
+	client := kraken.NewClient(subs)
 	client.Connect()
 }
