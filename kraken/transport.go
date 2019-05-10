@@ -5,9 +5,6 @@ import (
 	"encoding/json"
 	"log"
 	"net/url"
-	"os"
-	"os/signal"
-	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -20,8 +17,6 @@ type Client struct {
 	ConnectionID             uint64
 	Version                  string
 	Subscriptions            []Subscription
-	responseCount            int
-	mtx                      *sync.Mutex
 	conn                     *websocket.Conn
 	connResponseChannel      chan ConnectionResponse
 	subStatusResponseChannel chan SubscriptionResponse
@@ -33,7 +28,6 @@ type Client struct {
 func NewClient(s []Subscription) *Client {
 	return &Client{
 		Subscriptions:            s,
-		mtx:                      &sync.Mutex{},
 		connResponseChannel:      make(chan ConnectionResponse, 1),
 		subStatusResponseChannel: make(chan SubscriptionResponse, 1),
 		tickerResponseChannel:    make(chan TickerResponse),
@@ -42,9 +36,9 @@ func NewClient(s []Subscription) *Client {
 }
 
 // Connect connects to the websocket api and sets connection details
-func (cl *Client) Connect() {
-	interrupt := make(chan os.Signal, 1)
-	signal.Notify(interrupt, os.Interrupt)
+func (cl *Client) Connect(ctx context.Context) {
+	// interrupt := make(chan os.Signal, 1)
+	// signal.Notify(interrupt, os.Interrupt)
 
 	connCtx, connCancel := context.WithCancel(context.Background())
 	subStatusCtx, subStatusCancel := context.WithCancel(context.Background())
@@ -79,7 +73,8 @@ func (cl *Client) Connect() {
 		case res := <-cl.tickerResponseChannel:
 			quote := broker.NewExchangeQuote("kraken", cl.channelPairMap[res.ChannelID], res.Ask)
 			log.Printf("Quote: %#v", quote)
-		case <-interrupt:
+		// case <-interrupt:
+		case <-ctx.Done():
 			log.Println("interrupt")
 			defer connCancel()
 			defer subStatusCancel()
