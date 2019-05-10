@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/kaplanmaxe/cw-websocket/binance"
 	"github.com/kaplanmaxe/cw-websocket/coinbase"
 	"github.com/kaplanmaxe/cw-websocket/kraken"
 )
@@ -24,9 +25,10 @@ func main() {
 		},
 	})
 	coinbase := coinbase.NewClient([]string{"BTC-USD", "ETH-USD"})
+	binance := binance.NewClient([]string{"BTCUSD", "ETHUSD"})
 	go kraken.Connect(ctx)
 	go coinbase.Connect(ctx)
-
+	go binance.Connect(ctx)
 	for {
 		select {
 		case <-interrupt:
