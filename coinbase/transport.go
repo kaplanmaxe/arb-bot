@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"log"
 	"net/url"
-	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/kaplanmaxe/cw-websocket/broker"
@@ -15,69 +14,19 @@ import (
 type Client struct {
 	Subscriptions []string
 	conn          *websocket.Conn
-	// connResponseChannel      chan ConnectionResponse
-	// subStatusResponseChannel chan SubscriptionResponse
-	tickerResponseChannel chan tickerResponse
-	connChannel           chan struct{}
-	// channelPairMap           ChannelPairMap
 }
 
+// NewClient returns a new instance of a coinbase api client
 func NewClient(pairs []string) *Client {
 	return &Client{
-		Subscriptions:         pairs,
-		tickerResponseChannel: make(chan tickerResponse),
-		connChannel:           make(chan struct{}, 1),
+		Subscriptions: pairs,
 	}
 }
 
 // Connect connects to the websocket api and sets connection details
-func (cl *Client) Connect(ctx context.Context) {
-	// interrupt := make(chan os.Signal, 1)
-	// signal.Notify(interrupt, os.Interrupt)
-
-	connCtx, connCancel := context.WithCancel(context.Background())
-	// tickerCtx, tickerCancel := context.WithCancel(context.Background())
-	defer connCancel()
-	// defer tickerCancel()
-
-	cl.connect(connCtx)
+func (cl *Client) Connect(ctx context.Context, quoteCh chan<- broker.Quote) {
+	cl.connect(ctx, quoteCh)
 	cl.subscribe()
-	defer cl.conn.Close()
-
-	// subs := 0
-	for {
-		select {
-		// case <-cl.connResponseChannel:
-		// 	connCancel()
-		// 	fmt.Println("connection")
-		// close(cl.connResponseChannel)
-		// cl.ConnectionID = res.ConnectionID
-		// cl.Version = res.Version
-		// log.Printf("Connection established! Connection ID: %d, API Version: %s", cl.ConnectionID, cl.Version)
-		case res := <-cl.tickerResponseChannel:
-
-			quote := broker.NewExchangeQuote("coinbase-pro", res.Pair, res.Price)
-			log.Printf("Quote: %#v", quote)
-		// case <-interrupt:
-		case <-ctx.Done():
-			log.Println("interrupt")
-			// defer connCancel()
-			// defer subStatusCancel()
-			// defer tickerCancel()
-			defer cl.conn.Close()
-			// Cleanly close the connection by sending a close message and then
-			// waiting (with timeout) for the server to close the connection.
-			err := cl.conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-			if err != nil {
-				log.Println("write close:", err)
-				return
-			}
-			select {
-			case <-time.After(time.Second):
-			}
-			return
-		}
-	}
 }
 
 func (cl *Client) readMessage() ([]byte, error) {
@@ -88,7 +37,7 @@ func (cl *Client) readMessage() ([]byte, error) {
 	return message, nil
 }
 
-func (cl *Client) connect(ctx context.Context) {
+func (cl *Client) connect(ctx context.Context, quoteCh chan<- broker.Quote) {
 	u := url.URL{Scheme: "wss", Host: "ws-feed.pro.coinbase.com"}
 	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
 	cl.conn = c
@@ -102,23 +51,29 @@ func (cl *Client) connect(ctx context.Context) {
 			message, err := cl.readMessage()
 			if err != nil {
 				// TODO: fix
-				log.Println("read2:", err, message)
+				log.Println("cb read2:", err, message)
 				return
-			}
-
-			var res tickerResponse
-			err = json.Unmarshal(message, &res)
-			if err != nil {
-				log.Fatal("Unmarshal", err)
-			}
-			if res.Pair != "" {
-				cl.tickerResponseChannel <- res
 			}
 
 			select {
 			case <-ctx.Done():
+				log.Println("Coinbase interrupt")
+				err := cl.conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+				if err != nil {
+					log.Println("write close:", err)
+					return
+				}
+				cl.conn.Close()
 				break cLoop
 			default:
+				var res tickerResponse
+				err = json.Unmarshal(message, &res)
+				if err != nil {
+					log.Fatal("Unmarshal", err)
+				}
+				if res.Pair != "" {
+					quoteCh <- *broker.NewExchangeQuote("coinbase-pro", res.Pair, res.Price)
+				}
 			}
 		}
 	}()

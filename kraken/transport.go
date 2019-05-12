@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"log"
 	"net/url"
-	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/kaplanmaxe/cw-websocket/broker"
@@ -20,7 +19,6 @@ type Client struct {
 	conn                     *websocket.Conn
 	connResponseChannel      chan ConnectionResponse
 	subStatusResponseChannel chan SubscriptionResponse
-	tickerResponseChannel    chan TickerResponse
 	channelPairMap           ChannelPairMap
 }
 
@@ -30,67 +28,41 @@ func NewClient(s []Subscription) *Client {
 		Subscriptions:            s,
 		connResponseChannel:      make(chan ConnectionResponse, 1),
 		subStatusResponseChannel: make(chan SubscriptionResponse, 1),
-		tickerResponseChannel:    make(chan TickerResponse),
 		channelPairMap:           make(ChannelPairMap),
 	}
 }
 
 // Connect connects to the websocket api and sets connection details
-func (cl *Client) Connect(ctx context.Context) {
-	// interrupt := make(chan os.Signal, 1)
-	// signal.Notify(interrupt, os.Interrupt)
-
+func (cl *Client) Connect(ctx context.Context, quoteCh chan<- broker.Quote) {
 	connCtx, connCancel := context.WithCancel(context.Background())
 	subStatusCtx, subStatusCancel := context.WithCancel(context.Background())
-	tickerCtx, tickerCancel := context.WithCancel(context.Background())
 	defer connCancel()
 	defer subStatusCancel()
-	defer tickerCancel()
 
 	cl.connect(connCtx)
 
 	subs := 0
+Loop:
 	for {
 		select {
 		case res := <-cl.connResponseChannel:
 			connCancel()
-			// close(cl.connResponseChannel)
 			cl.ConnectionID = res.ConnectionID
 			cl.Version = res.Version
-			log.Printf("Connection established! Connection ID: %d, API Version: %s", cl.ConnectionID, cl.Version)
+			log.Printf("Kraken connection established! Connection ID: %d, API Version: %s", cl.ConnectionID, cl.Version)
 			cl.subscribe(subStatusCtx)
 		case res := <-cl.subStatusResponseChannel:
 			subs++
-			if subs == len(cl.Subscriptions) {
-				subStatusCancel()
-				cl.startTickerListener(tickerCtx)
-			}
-			// Minor race condition where we can't stop go routine fast enough
 			if res.Pair != "" {
 				cl.channelPairMap[res.ChannelID] = res.Pair
 				log.Printf("%s subscribed to for pair %s on channel %d", res.Subscription.Name, res.Pair, res.ChannelID)
+				// TODO: fix the hacky 0 index
+				if subs == len(cl.Subscriptions[0].Pair) {
+					subStatusCancel()
+					cl.startTickerListener(ctx, quoteCh)
+					break Loop
+				}
 			}
-		case res := <-cl.tickerResponseChannel:
-			quote := broker.NewExchangeQuote("kraken", cl.channelPairMap[res.ChannelID], res.Ask)
-			log.Printf("Quote: %#v", quote)
-		// case <-interrupt:
-		case <-ctx.Done():
-			log.Println("interrupt")
-			defer connCancel()
-			defer subStatusCancel()
-			defer tickerCancel()
-			defer cl.conn.Close()
-			// Cleanly close the connection by sending a close message and then
-			// waiting (with timeout) for the server to close the connection.
-			err := cl.conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-			if err != nil {
-				log.Println("write close:", err)
-				return
-			}
-			select {
-			case <-time.After(time.Second):
-			}
-			return
 		}
 	}
 }
@@ -134,6 +106,7 @@ func (cl *Client) connect(ctx context.Context) {
 				break cLoop
 			}
 		}
+		return
 	}()
 }
 
@@ -179,10 +152,11 @@ func (cl *Client) subscribe(ctx context.Context) {
 			default:
 			}
 		}
+		return
 	}()
 }
 
-func (cl *Client) startTickerListener(ctx context.Context) {
+func (cl *Client) startTickerListener(ctx context.Context, quoteCh chan<- broker.Quote) {
 	go func() {
 	Loop:
 		for {
@@ -192,21 +166,29 @@ func (cl *Client) startTickerListener(ctx context.Context) {
 				log.Println("read error, skipping")
 				return
 			}
-			var tickerResponse TickerResponse
-			err = json.Unmarshal(message, &tickerResponse)
-			if err != nil {
-				// TODO: fix
-				log.Fatal("Unmarshall err3", err, message)
-			}
-			if tickerResponse.Ask != "" {
-				cl.tickerResponseChannel <- tickerResponse
-			}
 
 			select {
 			case <-ctx.Done():
+				log.Println("Kraken interrupt")
+				err := cl.conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+				if err != nil {
+					log.Println("write close:", err)
+					return
+				}
+				cl.conn.Close()
 				break Loop
 			default:
+				var tickerResponse TickerResponse
+				err = json.Unmarshal(message, &tickerResponse)
+				if err != nil {
+					// TODO: fix
+					log.Fatal("Unmarshall err3", err, message)
+				}
+				if tickerResponse.Ask != "" {
+					quoteCh <- *broker.NewExchangeQuote("kraken", cl.channelPairMap[tickerResponse.ChannelID], tickerResponse.Ask)
+				}
 			}
 		}
+		return
 	}()
 }
