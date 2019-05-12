@@ -7,10 +7,10 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/kaplanmaxe/cw-websocket/binance"
-	"github.com/kaplanmaxe/cw-websocket/broker"
-	"github.com/kaplanmaxe/cw-websocket/coinbase"
-	"github.com/kaplanmaxe/cw-websocket/kraken"
+	"github.com/kaplanmaxe/helgart/binance"
+	"github.com/kaplanmaxe/helgart/broker"
+	"github.com/kaplanmaxe/helgart/coinbase"
+	"github.com/kaplanmaxe/helgart/kraken"
 )
 
 func main() {

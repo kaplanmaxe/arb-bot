@@ -1,5 +1,5 @@
 build:
-	@(go build -o ./bin/cw-websocket main.go)
+	@(go build -o ./bin/helgart main.go)
 
 run: build
-	@(./bin/cw-websocket)
+	@(./bin/helgart)

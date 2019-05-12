@@ -7,8 +7,7 @@ import (
 	"net/url"
 
 	"github.com/gorilla/websocket"
-	"github.com/kaplanmaxe/cw-websocket/broker"
-	// "github.com/kaplanmaxe/cw-websocket/kraken"
+	"github.com/kaplanmaxe/helgart/broker"
 )
 
 // Client represents a new websocket client for Kraken
