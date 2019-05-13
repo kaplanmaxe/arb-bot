@@ -83,7 +83,7 @@ func (c *Client) ParseTickerResponse(msg []byte) broker.Quote {
 		log.Fatal("Unmarshal", err)
 	}
 	if res.Pair != "" {
-		quote = *broker.NewExchangeQuote("coinbase", res.Pair, res.Price)
+		quote = *broker.NewExchangeQuote(exchange.COINBASE, res.Pair, res.Price)
 	}
 	return quote
 }

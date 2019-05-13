@@ -65,8 +65,9 @@ type TickerResponse struct {
 }
 
 type tickerResponse struct {
-	Pair  string
-	Price string
+	ChannelID int
+	Pair      string
+	Price     string
 }
 
 type SubscriptionResponse struct {
@@ -95,6 +96,20 @@ func (s *TickerResponse) UnmarshalJSON(msg []byte) error {
 	if len(tmp) != 0 {
 		s.Ask = tmp[1]["a"][0].(string)
 		s.Bid = tmp[1]["b"][0].(string)
+		s.ChannelID = channel[0]
+	}
+
+	return nil
+}
+
+func (s *tickerResponse) UnmarshalJSON(msg []byte) error {
+	// Hack for weird kraken response
+	var channel []int
+	json.Unmarshal(msg, &channel)
+	var tmp []map[string][]interface{}
+	json.Unmarshal(msg, &tmp)
+	if len(tmp) != 0 {
+		s.Price = tmp[1]["a"][0].(string)
 		s.ChannelID = channel[0]
 	}
 

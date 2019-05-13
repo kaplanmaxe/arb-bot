@@ -1,22 +1,87 @@
 package kraken
 
 import (
+	"context"
 	"encoding/json"
 	"log"
 	"net/url"
+	"sync"
 
+	"github.com/kaplanmaxe/helgart/api"
 	"github.com/kaplanmaxe/helgart/broker"
 	"github.com/kaplanmaxe/helgart/exchange"
 )
 
 type Client struct {
-	Pairs []string
+	Pairs                    []string
+	quoteCh                  chan<- broker.Quote
+	api                      api.Connector
+	ConnectionID             uint64
+	Version                  string
+	connResponseChannel      chan ConnectionResponse
+	subStatusResponseChannel chan SubscriptionResponse
+	channelPairMap           ChannelPairMap
 }
 
-func NewClient(pairs []string) exchange.API {
+func NewClient(pairs []string, api api.Connector, quoteCh chan<- broker.Quote) exchange.API {
 	return &Client{
-		Pairs: pairs,
+		Pairs:          pairs,
+		quoteCh:        quoteCh,
+		api:            api,
+		channelPairMap: make(ChannelPairMap),
 	}
+}
+
+func (c *Client) Start(ctx context.Context) {
+	c.api.Connect(c.GetURL())
+	// c.api.SendSubscribeRequest(c.FormatSubscribeRequest())
+	var wg sync.WaitGroup
+	wg.Add(1)
+	c.SendSubscribeRequest(&wg, c.FormatSubscribeRequest())
+	wg.Wait()
+	c.StartTickerListener(ctx)
+}
+
+func (c *Client) SendSubscribeRequest(wg *sync.WaitGroup, req interface{}) {
+	// TODO: subscribe all at once
+	payload, err := json.Marshal(req)
+	if err != nil {
+		log.Fatal("Marshal", err)
+	}
+	err = c.api.WriteMessage(payload)
+	if err != nil {
+		log.Fatal("Write", err)
+	}
+	go func() {
+		var mtx sync.Mutex
+		subs := 0
+	Loop:
+		for {
+			message, err := c.api.ReadMessage()
+			if err != nil {
+				// TODO: fix
+				log.Println("read1:", err, message)
+				return
+			}
+
+			var subStatusResponse SubscriptionResponse
+			err = json.Unmarshal(message, &subStatusResponse)
+			if err != nil {
+				// TODO: fix
+				log.Fatal("Unmarshall err1", err)
+			}
+			if subs < len(c.Pairs) {
+				c.channelPairMap[subStatusResponse.ChannelID] = subStatusResponse.Pair
+			} else {
+				wg.Done()
+				break Loop
+			}
+			mtx.Lock()
+			subs++
+			mtx.Unlock()
+		}
+		return
+	}()
 }
 
 func (c *Client) FormatSubscribeRequest() interface{} {
@@ -38,10 +103,44 @@ func (c *Client) ParseTickerResponse(msg []byte) broker.Quote {
 	if err != nil {
 		log.Fatal("Unmarshal", err)
 	}
+	c.getPair(&res)
 	if res.Pair != "" {
-		quote = *broker.NewExchangeQuote("kraken", res.Pair, res.Price)
+		quote = *broker.NewExchangeQuote(exchange.KRAKEN, res.Pair, res.Price)
 	}
 	return quote
+}
+
+func (c *Client) getPair(res *tickerResponse) {
+	res.Pair = c.channelPairMap[res.ChannelID]
+}
+
+func (c *Client) StartTickerListener(ctx context.Context) {
+	go func() {
+	cLoop:
+		for {
+			message, err := c.api.ReadMessage()
+			if err != nil {
+				// TODO: fix
+				log.Println("cb read2:", err, message)
+				return
+			}
+
+			select {
+			case <-ctx.Done():
+				err := c.api.Close()
+				if err != nil {
+					log.Printf("Error closing %s: %s", exchange.KRAKEN, err)
+				}
+				break cLoop
+			default:
+				res := c.ParseTickerResponse(message)
+				if res.Pair != "" {
+					c.quoteCh <- res
+				}
+
+			}
+		}
+	}()
 }
 
 func (c *Client) GetURL() *url.URL {

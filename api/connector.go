@@ -11,12 +11,12 @@ import (
 )
 
 type Connector interface {
-	// Start(context.Context)
+	Start(context.Context)
 	Connect(*url.URL) error
 	ReadMessage() ([]byte, error)
 	SendSubscribeRequest(interface{}) error
 	SendSubscribeRequestWithResponse(context.Context, interface{}) ([]byte, error)
-	writeMessage([]byte) error
+	WriteMessage([]byte) error
 	StartTickerListener(context.Context)
 	Close() error
 }
@@ -38,6 +38,8 @@ func NewSource(exchangeName string) Connector {
 		// api:          api,
 	}
 }
+
+func (s *Source) Start(ctx context.Context) {}
 
 // Connect connects to the websocket api and stores the connection
 func (s *Source) Connect(url *url.URL) error {
@@ -65,7 +67,7 @@ func (s *Source) SendSubscribeRequest(req interface{}) error {
 	if err != nil {
 		return err
 	}
-	err = s.writeMessage(payload)
+	err = s.WriteMessage(payload)
 	return nil
 }
 
@@ -75,11 +77,11 @@ func (s *Source) SendSubscribeRequestWithResponse(ctx context.Context, req inter
 	if err != nil {
 		return nil, err
 	}
-	err = s.writeMessage(payload)
+	err = s.WriteMessage(payload)
 	return nil, nil
 }
 
-func (s *Source) writeMessage(msg []byte) error {
+func (s *Source) WriteMessage(msg []byte) error {
 	err := s.conn.WriteMessage(websocket.TextMessage, msg)
 	if err != nil {
 		return err
