@@ -41,7 +41,6 @@ type Connector interface {
 	SendSubscribeRequest(interface{}) error
 	writeMessage([]byte) error
 	StartTickerListener(context.Context)
-	readTickerResponse([]byte) broker.Quote
 	Close() error
 }
 
@@ -134,31 +133,9 @@ func (s *Source) StartTickerListener(ctx context.Context) {
 				break cLoop
 			default:
 				s.quoteCh <- s.api.ParseTickerResponse(message)
-				// switch s.exchangeName {
-				// case COINBASE:
-				// 	s.quoteCh <- s.readTickerResponse(message)
-				// }
 			}
 		}
 	}()
-}
-
-func (s *Source) readTickerResponse(message []byte) broker.Quote {
-	var err error
-	var quote broker.Quote
-
-	switch s.exchangeName {
-	case COINBASE:
-		var res CoinbaseTickerResponse
-		err = json.Unmarshal(message, &res)
-		if err != nil {
-			log.Fatal("Unmarshal", err)
-		}
-		if res.Pair != "" {
-			quote = *broker.NewExchangeQuote(s.exchangeName, res.Pair, res.Price)
-		}
-	}
-	return quote
 }
 
 // Close closes the connection
@@ -172,16 +149,3 @@ func (s *Source) Close() error {
 	s.conn.Close()
 	return nil
 }
-
-// func getURL(exchangeName string) url.URL {
-// 	var u url.URL
-// 	switch exchangeName {
-// 	case KRAKEN:
-// 		u = url.URL{Scheme: "wss", Host: "ws.kraken.com"}
-// 	case COINBASE:
-// 		u = url.URL{Scheme: "wss", Host: "ws-feed.pro.coinbase.com"}
-// 	case BINANCE:
-// 		u = url.URL{Scheme: "wss", Host: "stream.binance.com:9443", Path: "/ws/bnbbtc@ticker"}
-// 	}
-// 	return u
-// }
