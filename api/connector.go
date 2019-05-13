@@ -90,29 +90,8 @@ func (s *Source) WriteMessage(msg []byte) error {
 }
 
 // StartTickerListener starts a listener in a new goroutine for any new quotes
+// This should be overridden by each gateway
 func (s *Source) StartTickerListener(ctx context.Context) {
-	// go func() {
-	// cLoop:
-	// 	for {
-	// 		message, err := s.readMessage()
-	// 		if err != nil {
-	// 			// TODO: fix
-	// 			log.Println("cb read2:", err, message)
-	// 			return
-	// 		}
-
-	// 		select {
-	// 		case <-ctx.Done():
-	// 			err := s.Close()
-	// 			if err != nil {
-	// 				log.Printf("Error closing %s: %s", s.exchangeName, err)
-	// 			}
-	// 			break cLoop
-	// 		default:
-	// 			s.quoteCh <- s.api.ParseTickerResponse(message)
-	// 		}
-	// 	}
-	// }()
 }
 
 // Close closes the connection
@@ -120,9 +99,11 @@ func (s *Source) Close() error {
 	log.Printf("%s interrupt\n", s.exchangeName)
 	err := s.conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 	if err != nil {
-		// log.Printf("%s write close: %s", s.exchangeName, err)
 		return fmt.Errorf("%s write close: %s", s.exchangeName, err)
 	}
-	s.conn.Close()
+	err = s.conn.Close()
+	if err != nil {
+		return fmt.Errorf("Error closing connection for %s: %s", s.exchangeName, err)
+	}
 	return nil
 }

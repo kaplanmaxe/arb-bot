@@ -3,7 +3,7 @@ package coinbase
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"fmt"
 	"net/url"
 
 	"github.com/kaplanmaxe/helgart/api"
@@ -12,23 +12,32 @@ import (
 )
 
 type Client struct {
-	Pairs   []string
-	quoteCh chan<- broker.Quote
-	api     api.Connector
+	Pairs        []string
+	quoteCh      chan<- broker.Quote
+	errorCh      chan<- error
+	api          api.Connector
+	exchangeName string
 }
 
-func NewClient(pairs []string, api api.Connector, quoteCh chan<- broker.Quote) exchange.API {
+func NewClient(pairs []string, api api.Connector, quoteCh chan<- broker.Quote, errorCh chan<- error) exchange.API {
 	return &Client{
-		Pairs:   pairs,
-		quoteCh: quoteCh,
-		api:     api,
+		Pairs:        pairs,
+		quoteCh:      quoteCh,
+		errorCh:      errorCh,
+		api:          api,
+		exchangeName: exchange.COINBASE,
 	}
 }
 
 func (c *Client) Start(ctx context.Context) {
 	c.api.Connect(c.GetURL())
-	// TODO: check for errors
-	c.api.SendSubscribeRequest(c.FormatSubscribeRequest())
+	err := c.api.SendSubscribeRequest(c.FormatSubscribeRequest())
+	if err != nil {
+		go func() {
+			c.errorCh <- err
+		}()
+		return
+	}
 	c.StartTickerListener(ctx)
 }
 
@@ -54,8 +63,7 @@ func (c *Client) StartTickerListener(ctx context.Context) {
 		for {
 			message, err := c.api.ReadMessage()
 			if err != nil {
-				// TODO: fix
-				log.Println("cb read2:", err, message)
+				c.errorCh <- fmt.Errorf("Error reading from %s: %s", c.exchangeName, err)
 				return
 			}
 
@@ -63,29 +71,34 @@ func (c *Client) StartTickerListener(ctx context.Context) {
 			case <-ctx.Done():
 				err := c.api.Close()
 				if err != nil {
-					log.Printf("Error closing %s: %s", exchange.COINBASE, err)
+					c.errorCh <- fmt.Errorf("Error closing %s: %s", c.exchangeName, err)
 				}
 				break cLoop
 			default:
-				c.quoteCh <- c.ParseTickerResponse(message)
+				res, err := c.ParseTickerResponse(message)
+				if err != nil {
+					c.errorCh <- err
+				} else if res.Pair != "" {
+					c.quoteCh <- res
+				}
 			}
 		}
 	}()
 }
 
-func (c *Client) ParseTickerResponse(msg []byte) broker.Quote {
+func (c *Client) ParseTickerResponse(msg []byte) (broker.Quote, error) {
 	var err error
 	var quote broker.Quote
 
 	var res tickerResponse
 	err = json.Unmarshal(msg, &res)
 	if err != nil {
-		log.Fatal("Unmarshal", err)
+		return broker.Quote{}, fmt.Errorf("Error unmarshalling from %s: %s", c.exchangeName, err)
 	}
 	if res.Pair != "" {
 		quote = *broker.NewExchangeQuote(exchange.COINBASE, res.Pair, res.Price)
 	}
-	return quote
+	return quote, nil
 }
 
 func (c *Client) GetURL() *url.URL {

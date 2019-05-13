@@ -3,7 +3,7 @@ package kraken
 import (
 	"context"
 	"encoding/json"
-	"log"
+	"fmt"
 	"net/url"
 	"sync"
 
@@ -13,44 +13,48 @@ import (
 )
 
 type Client struct {
-	Pairs                    []string
-	quoteCh                  chan<- broker.Quote
-	api                      api.Connector
-	ConnectionID             uint64
-	Version                  string
-	connResponseChannel      chan ConnectionResponse
-	subStatusResponseChannel chan SubscriptionResponse
-	channelPairMap           ChannelPairMap
+	Pairs          []string
+	quoteCh        chan<- broker.Quote
+	errorCh        chan<- error
+	api            api.Connector
+	channelPairMap ChannelPairMap
+	exchangeName   string
 }
 
-func NewClient(pairs []string, api api.Connector, quoteCh chan<- broker.Quote) exchange.API {
+func NewClient(pairs []string, api api.Connector, quoteCh chan<- broker.Quote, errorCh chan<- error) exchange.API {
 	return &Client{
 		Pairs:          pairs,
 		quoteCh:        quoteCh,
+		errorCh:        errorCh,
 		api:            api,
 		channelPairMap: make(ChannelPairMap),
+		exchangeName:   exchange.KRAKEN,
 	}
 }
 
 func (c *Client) Start(ctx context.Context) {
 	c.api.Connect(c.GetURL())
-	// c.api.SendSubscribeRequest(c.FormatSubscribeRequest())
 	var wg sync.WaitGroup
 	wg.Add(1)
-	c.SendSubscribeRequest(&wg, c.FormatSubscribeRequest())
+	err := c.SendSubscribeRequest(&wg, c.FormatSubscribeRequest())
+	if err != nil {
+		go func() {
+			c.errorCh <- err
+		}()
+		return
+	}
 	wg.Wait()
 	c.StartTickerListener(ctx)
 }
 
-func (c *Client) SendSubscribeRequest(wg *sync.WaitGroup, req interface{}) {
-	// TODO: subscribe all at once
+func (c *Client) SendSubscribeRequest(wg *sync.WaitGroup, req interface{}) error {
 	payload, err := json.Marshal(req)
 	if err != nil {
-		log.Fatal("Marshal", err)
+		return fmt.Errorf("Error marshalling %s subscribe request: %s", c.exchangeName, err)
 	}
 	err = c.api.WriteMessage(payload)
 	if err != nil {
-		log.Fatal("Write", err)
+		return fmt.Errorf("Error sending subscribe request for %s: %s", c.exchangeName, err)
 	}
 	go func() {
 		var mtx sync.Mutex
@@ -59,16 +63,14 @@ func (c *Client) SendSubscribeRequest(wg *sync.WaitGroup, req interface{}) {
 		for {
 			message, err := c.api.ReadMessage()
 			if err != nil {
-				// TODO: fix
-				log.Println("read1:", err, message)
+				c.errorCh <- fmt.Errorf("Error reading message from %s: %s", c.exchangeName, err)
 				return
 			}
 
 			var subStatusResponse SubscriptionResponse
 			err = json.Unmarshal(message, &subStatusResponse)
 			if err != nil {
-				// TODO: fix
-				log.Fatal("Unmarshall err1", err)
+				c.errorCh <- fmt.Errorf("Error unmarshalling from %s: %s", c.exchangeName, err)
 			}
 			if subs < len(c.Pairs) {
 				c.channelPairMap[subStatusResponse.ChannelID] = subStatusResponse.Pair
@@ -82,6 +84,7 @@ func (c *Client) SendSubscribeRequest(wg *sync.WaitGroup, req interface{}) {
 		}
 		return
 	}()
+	return nil
 }
 
 func (c *Client) FormatSubscribeRequest() interface{} {
@@ -94,20 +97,20 @@ func (c *Client) FormatSubscribeRequest() interface{} {
 	}
 }
 
-func (c *Client) ParseTickerResponse(msg []byte) broker.Quote {
+func (c *Client) ParseTickerResponse(msg []byte) (broker.Quote, error) {
 	var err error
 	var quote broker.Quote
 
 	var res tickerResponse
 	err = json.Unmarshal(msg, &res)
 	if err != nil {
-		log.Fatal("Unmarshal", err)
+		return broker.Quote{}, fmt.Errorf("Error unmarshalling from %s: %s", c.exchangeName, err)
 	}
 	c.getPair(&res)
 	if res.Pair != "" {
-		quote = *broker.NewExchangeQuote(exchange.KRAKEN, res.Pair, res.Price)
+		quote = *broker.NewExchangeQuote(c.exchangeName, res.Pair, res.Price)
 	}
-	return quote
+	return quote, nil
 }
 
 func (c *Client) getPair(res *tickerResponse) {
@@ -120,8 +123,7 @@ func (c *Client) StartTickerListener(ctx context.Context) {
 		for {
 			message, err := c.api.ReadMessage()
 			if err != nil {
-				// TODO: fix
-				log.Println("cb read2:", err, message)
+				c.errorCh <- fmt.Errorf("Error reading from %s: %s", c.exchangeName, err)
 				return
 			}
 
@@ -129,12 +131,14 @@ func (c *Client) StartTickerListener(ctx context.Context) {
 			case <-ctx.Done():
 				err := c.api.Close()
 				if err != nil {
-					log.Printf("Error closing %s: %s", exchange.KRAKEN, err)
+					c.errorCh <- fmt.Errorf("Error closing %s: %s", c.exchangeName, err)
 				}
 				break cLoop
 			default:
-				res := c.ParseTickerResponse(message)
-				if res.Pair != "" {
+				res, err := c.ParseTickerResponse(message)
+				if err != nil {
+					c.errorCh <- err
+				} else if res.Pair != "" {
 					c.quoteCh <- res
 				}
 
@@ -146,185 +150,3 @@ func (c *Client) StartTickerListener(ctx context.Context) {
 func (c *Client) GetURL() *url.URL {
 	return &url.URL{Scheme: "wss", Host: "ws.kraken.com"}
 }
-
-// // Client represents a new websocket client for Kraken
-// type Client struct {
-// 	ConnectionID             uint64
-// 	Version                  string
-// 	Subscriptions            []Subscription
-// 	conn                     *websocket.Conn
-// 	connResponseChannel      chan ConnectionResponse
-// 	subStatusResponseChannel chan SubscriptionResponse
-// 	channelPairMap           ChannelPairMap
-// }
-
-// // NewClient returns a new instance of Client
-// func NewClient(s []Subscription) *Client {
-// 	return &Client{
-// 		Subscriptions:            s,
-// 		connResponseChannel:      make(chan ConnectionResponse, 1),
-// 		subStatusResponseChannel: make(chan SubscriptionResponse, 1),
-// 		channelPairMap:           make(ChannelPairMap),
-// 	}
-// }
-
-// // Connect connects to the websocket api and sets connection details
-// func (cl *Client) Connect(ctx context.Context, quoteCh chan<- broker.Quote) {
-// 	connCtx, connCancel := context.WithCancel(context.Background())
-// 	subStatusCtx, subStatusCancel := context.WithCancel(context.Background())
-// 	defer connCancel()
-// 	defer subStatusCancel()
-
-// 	cl.connect(connCtx)
-
-// 	subs := 0
-// Loop:
-// 	for {
-// 		select {
-// 		case res := <-cl.connResponseChannel:
-// 			connCancel()
-// 			cl.ConnectionID = res.ConnectionID
-// 			cl.Version = res.Version
-// 			log.Printf("Kraken connection established! Connection ID: %d, API Version: %s", cl.ConnectionID, cl.Version)
-// 			cl.subscribe(subStatusCtx)
-// 		case res := <-cl.subStatusResponseChannel:
-// 			subs++
-// 			if res.Pair != "" {
-// 				cl.channelPairMap[res.ChannelID] = res.Pair
-// 				log.Printf("%s subscribed to for pair %s on channel %d", res.Subscription.Name, res.Pair, res.ChannelID)
-// 				// TODO: fix the hacky 0 index
-// 				if subs == len(cl.Subscriptions[0].Pair) {
-// 					subStatusCancel()
-// 					cl.startTickerListener(ctx, quoteCh)
-// 					break Loop
-// 				}
-// 			}
-// 		}
-// 	}
-// }
-
-// func (cl *Client) readMessage() ([]byte, error) {
-// 	_, message, err := cl.conn.ReadMessage()
-// 	if err != nil {
-// 		return []byte{}, err
-// 	}
-// 	return message, nil
-// }
-
-// func (cl *Client) connect(ctx context.Context) {
-// 	u := url.URL{Scheme: "wss", Host: "ws.kraken.com"}
-// 	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
-// 	cl.conn = c
-// 	if err != nil {
-// 		log.Fatal("dial:", err)
-// 	}
-// 	go func() {
-// 	cLoop:
-// 		for {
-// 			message, err := cl.readMessage()
-// 			if err != nil {
-// 				// TODO: fix
-// 				log.Println("read2:", err, message)
-// 				return
-// 			}
-
-// 			var connResponse ConnectionResponse
-// 			err = json.Unmarshal(message, &connResponse)
-// 			if err != nil {
-// 				// TODO: fix
-// 				log.Fatal("Unmarshall err2", err)
-// 			}
-
-// 			cl.connResponseChannel <- connResponse
-
-// 			select {
-// 			case <-ctx.Done():
-// 				break cLoop
-// 			}
-// 		}
-// 		return
-// 	}()
-// }
-
-// func (cl *Client) subscribe(ctx context.Context) {
-// 	// TODO: subscribe all at once
-// 	for _, sub := range cl.Subscriptions {
-// 		req := &SubscribeRequest{
-// 			Event:        "subscribe",
-// 			Pair:         sub.Pair,
-// 			Subscription: SubscriptionT{Name: sub.Type},
-// 		}
-// 		payload, err := json.Marshal(req)
-// 		if err != nil {
-// 			log.Fatal("Marshal", err)
-// 		}
-// 		err = cl.conn.WriteMessage(websocket.TextMessage, []byte(payload))
-// 		if err != nil {
-// 			log.Fatal("Write", err)
-// 		}
-// 	}
-
-// 	go func() {
-// 	Loop:
-// 		for {
-// 			message, err := cl.readMessage()
-// 			if err != nil {
-// 				// TODO: fix
-// 				log.Println("read1:", err, message)
-// 				return
-// 			}
-
-// 			var subStatusResponse SubscriptionResponse
-// 			err = json.Unmarshal(message, &subStatusResponse)
-// 			if err != nil {
-// 				// TODO: fix
-// 				log.Fatal("Unmarshall err1", err)
-// 			}
-// 			cl.subStatusResponseChannel <- subStatusResponse
-
-// 			select {
-// 			case <-ctx.Done():
-// 				break Loop
-// 			default:
-// 			}
-// 		}
-// 		return
-// 	}()
-// }
-
-// func (cl *Client) startTickerListener(ctx context.Context, quoteCh chan<- broker.Quote) {
-// 	go func() {
-// 	Loop:
-// 		for {
-// 			message, err := cl.readMessage()
-// 			if err != nil {
-// 				// TODO: fix
-// 				log.Println("read error, skipping")
-// 				return
-// 			}
-
-// 			select {
-// 			case <-ctx.Done():
-// 				log.Println("Kraken interrupt")
-// 				err := cl.conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-// 				if err != nil {
-// 					log.Println("write close:", err)
-// 					return
-// 				}
-// 				cl.conn.Close()
-// 				break Loop
-// 			default:
-// 				var tickerResponse TickerResponse
-// 				err = json.Unmarshal(message, &tickerResponse)
-// 				if err != nil {
-// 					// TODO: fix
-// 					log.Fatal("Unmarshall err3", err, message)
-// 				}
-// 				if tickerResponse.Ask != "" {
-// 					quoteCh <- *broker.NewExchangeQuote("kraken", cl.channelPairMap[tickerResponse.ChannelID], tickerResponse.Ask)
-// 				}
-// 			}
-// 		}
-// 		return
-// 	}()
-// }

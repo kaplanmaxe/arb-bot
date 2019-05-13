@@ -26,7 +26,7 @@ const (
 type API interface {
 	Start(context.Context)
 	GetURL() *url.URL
-	ParseTickerResponse([]byte) broker.Quote
+	ParseTickerResponse([]byte) (broker.Quote, error)
 	FormatSubscribeRequest() interface{}
 	// connect()
 	// Close() error
@@ -129,29 +129,31 @@ func (s *Source) writeMessage(msg []byte) error {
 }
 
 // StartTickerListener starts a listener in a new goroutine for any new quotes
+// Should be overridden by each gateway
 func (s *Source) StartTickerListener(ctx context.Context) {
-	go func() {
-	cLoop:
-		for {
-			message, err := s.readMessage()
-			if err != nil {
-				// TODO: fix
-				log.Println("cb read2:", err, message)
-				return
-			}
+	// go func() {
+	// cLoop:
+	// 	for {
+	// 		message, err := s.readMessage()
+	// 		if err != nil {
+	// 			// TODO: fix
+	// 			log.Println("cb read2:", err, message)
+	// 			return
+	// 		}
 
-			select {
-			case <-ctx.Done():
-				err := s.Close()
-				if err != nil {
-					log.Printf("Error closing %s: %s", s.exchangeName, err)
-				}
-				break cLoop
-			default:
-				s.quoteCh <- s.api.ParseTickerResponse(message)
-			}
-		}
-	}()
+	// 		select {
+	// 		case <-ctx.Done():
+	// 			err := s.Close()
+	// 			if err != nil {
+	// 				log.Printf("Error closing %s: %s", s.exchangeName, err)
+	// 			}
+	// 			break cLoop
+	// 		default:
+	// 			res, err := s.api
+	// 			s.quoteCh <- s.api.ParseTickerResponse(message)
+	// 		}
+	// 	}
+	// }()
 }
 
 // Close closes the connection
