@@ -29,17 +29,11 @@ func main() {
 			Pair: []string{"XBT/USD", "ETH/USD"},
 		},
 	})
-	// coinbase := coinbase.NewClient([]string{"BTC-USD", "ETH-USD"})
-	// coinbase := coinbase.NewClient(exchange.NewSource(exchange.COINBASE, quoteCh), []string{"BTC-USD", "ETH-USD"}, quoteCh)
-	coinbase := exchange.NewSource(coinbase.NewClient([]string{"BTC-USD", "ETH-USD"}, quoteCh), exchange.COINBASE, quoteCh)
-	binance := binance.NewClient([]string{"BTCUSD", "ETHUSD"})
+	coinbase := exchange.NewSource(coinbase.NewClient([]string{"BTC-USD", "ETH-USD"}), exchange.COINBASE, quoteCh)
+	binance := exchange.NewSource(binance.NewClient(), exchange.BINANCE, quoteCh)
 	kraken.Connect(ctx, quoteCh)
-	// coinbase.Connect(ctx, quoteCh)
 	coinbase.Start(ctx)
-	binance.Connect(ctx, quoteCh)
-
-	// cb := exchange.NewSource(exchange.COINBASE, quoteCh)
-	// cb.Start()
+	binance.Start(ctx)
 	go func() {
 		for {
 			select {

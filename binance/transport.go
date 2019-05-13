@@ -1,79 +1,107 @@
 package binance
 
 import (
-	"context"
 	"encoding/json"
 	"log"
 	"net/url"
 
-	"github.com/gorilla/websocket"
 	"github.com/kaplanmaxe/helgart/broker"
+	"github.com/kaplanmaxe/helgart/exchange"
 )
 
-// Client represents a new websocket client for Coinbase
-type Client struct {
-	Subscriptions []string
-	conn          *websocket.Conn
+type Client struct{}
+
+func NewClient() exchange.API {
+	return &Client{}
 }
 
-// NewClient returns a new instance of a binance api client
-func NewClient(pairs []string) *Client {
-	return &Client{
-		Subscriptions: pairs,
-	}
+func (c *Client) FormatSubscribeRequest() interface{} {
+	return nil
 }
 
-// Connect connects to the websocket api and sets connection details
-func (cl *Client) Connect(ctx context.Context, quoteCh chan<- broker.Quote) {
-	cl.connect(ctx, quoteCh)
-}
+func (c *Client) ParseTickerResponse(msg []byte) broker.Quote {
+	var err error
+	var quote broker.Quote
 
-func (cl *Client) readMessage() ([]byte, error) {
-	_, message, err := cl.conn.ReadMessage()
+	var res tickerResponse
+	err = json.Unmarshal(msg, &res)
 	if err != nil {
-		return []byte{}, err
+		log.Fatal("Unmarshal", err)
 	}
-	return message, nil
+	if res.Pair != "" {
+		quote = *broker.NewExchangeQuote("binance", res.Pair, res.Price)
+	}
+	return quote
 }
 
-func (cl *Client) connect(ctx context.Context, quoteCh chan<- broker.Quote) {
-	u := url.URL{Scheme: "wss", Host: "stream.binance.com:9443", Path: "/ws/bnbbtc@ticker"}
-	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
-	cl.conn = c
-
-	if err != nil {
-		log.Fatal("dial:", err)
-	}
-	go func() {
-	cLoop:
-		for {
-			message, err := cl.readMessage()
-			if err != nil {
-				// TODO: fix
-				log.Println("read2:", err, message)
-				return
-			}
-
-			select {
-			case <-ctx.Done():
-				log.Println("Binance interrupt")
-				err := cl.conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
-				if err != nil {
-					log.Println("write close:", err)
-					return
-				}
-				cl.conn.Close()
-				break cLoop
-			default:
-				var res tickerResponse
-				err = json.Unmarshal(message, &res)
-				if err != nil {
-					log.Fatal("Unmarshal", err)
-				}
-				if res.Pair != "" {
-					quoteCh <- *broker.NewExchangeQuote("binance", res.Pair, res.Price)
-				}
-			}
-		}
-	}()
+func (c *Client) GetURL() *url.URL {
+	return &url.URL{Scheme: "wss", Host: "stream.binance.com:9443", Path: "/ws/bnbbtc@ticker"}
 }
+
+// // Client represents a new websocket client for Coinbase
+// type Client struct {
+// 	Subscriptions []string
+// 	conn          *websocket.Conn
+// }
+
+// // NewClient returns a new instance of a binance api client
+// func NewClient(pairs []string) *Client {
+// 	return &Client{
+// 		Subscriptions: pairs,
+// 	}
+// }
+
+// // Connect connects to the websocket api and sets connection details
+// func (cl *Client) Connect(ctx context.Context, quoteCh chan<- broker.Quote) {
+// 	cl.connect(ctx, quoteCh)
+// }
+
+// func (cl *Client) readMessage() ([]byte, error) {
+// 	_, message, err := cl.conn.ReadMessage()
+// 	if err != nil {
+// 		return []byte{}, err
+// 	}
+// 	return message, nil
+// }
+
+// func (cl *Client) connect(ctx context.Context, quoteCh chan<- broker.Quote) {
+// 	u := url.URL{Scheme: "wss", Host: "stream.binance.com:9443", Path: "/ws/bnbbtc@ticker"}
+// 	c, _, err := websocket.DefaultDialer.Dial(u.String(), nil)
+// 	cl.conn = c
+
+// 	if err != nil {
+// 		log.Fatal("dial:", err)
+// 	}
+// 	go func() {
+// 	cLoop:
+// 		for {
+// 			message, err := cl.readMessage()
+// 			if err != nil {
+// 				// TODO: fix
+// 				log.Println("read2:", err, message)
+// 				return
+// 			}
+
+// 			select {
+// 			case <-ctx.Done():
+// 				log.Println("Binance interrupt")
+// 				err := cl.conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
+// 				if err != nil {
+// 					log.Println("write close:", err)
+// 					return
+// 				}
+// 				cl.conn.Close()
+// 				break cLoop
+// 			default:
+// 				var res tickerResponse
+// 				err = json.Unmarshal(message, &res)
+// 				if err != nil {
+// 					log.Fatal("Unmarshal", err)
+// 				}
+// 				if res.Pair != "" {
+// 					quoteCh <- *broker.NewExchangeQuote("binance", res.Pair, res.Price)
+// 				}
+// 			}
+// 		}
+// 	}()
+// }

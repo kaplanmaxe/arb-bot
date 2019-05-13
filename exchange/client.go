@@ -36,7 +36,7 @@ type API interface {
 // on ticker websocket connections
 type Connector interface {
 	Start(context.Context)
-	Connect(context.Context) error
+	Connect() error
 	readMessage() ([]byte, error)
 	SendSubscribeRequest(interface{}) error
 	writeMessage([]byte) error
@@ -46,7 +46,6 @@ type Connector interface {
 
 // Source represents an exchange source
 type Source struct {
-	// url          url.URL
 	pairs        []string
 	conn         *websocket.Conn
 	exchangeName string
@@ -57,7 +56,6 @@ type Source struct {
 // NewSource returns a new instance of source
 func NewSource(api API, exchangeName string, quoteCh chan<- broker.Quote) Connector {
 	return &Source{
-		// url:          getURL(exchangeName),
 		exchangeName: exchangeName,
 		quoteCh:      quoteCh,
 		api:          api,
@@ -68,14 +66,17 @@ func NewSource(api API, exchangeName string, quoteCh chan<- broker.Quote) Connec
 func (s *Source) Start(ctx context.Context) {
 	switch s.exchangeName {
 	case COINBASE:
-		s.Connect(ctx)
+		s.Connect()
 		s.SendSubscribeRequest(s.api.FormatSubscribeRequest())
+		s.StartTickerListener(ctx)
+	case BINANCE:
+		s.Connect()
 		s.StartTickerListener(ctx)
 	}
 }
 
 // Connect connects to the websocket api and stores the connection
-func (s *Source) Connect(ctx context.Context) error {
+func (s *Source) Connect() error {
 	c, _, err := websocket.DefaultDialer.Dial(s.api.GetURL().String(), nil)
 	s.conn = c
 

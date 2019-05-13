@@ -13,7 +13,7 @@ type Client struct {
 	Pairs []string
 }
 
-func NewClient(pairs []string, quoteCh chan<- broker.Quote) exchange.API {
+func NewClient(pairs []string) exchange.API {
 	return &Client{
 		Pairs: pairs,
 	}
