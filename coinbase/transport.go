@@ -11,6 +11,7 @@ import (
 	"github.com/kaplanmaxe/helgart/exchange"
 )
 
+// Client represents an API client
 type Client struct {
 	Pairs        []string
 	quoteCh      chan<- broker.Quote
@@ -19,6 +20,7 @@ type Client struct {
 	exchangeName string
 }
 
+// NewClient returns a new instance of the API
 func NewClient(pairs []string, api api.Connector, quoteCh chan<- broker.Quote, errorCh chan<- error) exchange.API {
 	return &Client{
 		Pairs:        pairs,
@@ -29,6 +31,7 @@ func NewClient(pairs []string, api api.Connector, quoteCh chan<- broker.Quote, e
 	}
 }
 
+// Start starts the api connection and listens for new ticker messages
 func (c *Client) Start(ctx context.Context) {
 	c.api.Connect(c.GetURL())
 	err := c.api.SendSubscribeRequest(c.FormatSubscribeRequest())
@@ -41,6 +44,7 @@ func (c *Client) Start(ctx context.Context) {
 	c.StartTickerListener(ctx)
 }
 
+// FormatSubscribeRequest creates the type for a subscribe request
 func (c *Client) FormatSubscribeRequest() interface{} {
 	return &subscribeRequest{
 		Type:       "subscribe",
@@ -57,6 +61,7 @@ func (c *Client) FormatSubscribeRequest() interface{} {
 	}
 }
 
+// StartTickerListener starts a new goroutine to listen for new ticker messages
 func (c *Client) StartTickerListener(ctx context.Context) {
 	go func() {
 	cLoop:
@@ -86,6 +91,7 @@ func (c *Client) StartTickerListener(ctx context.Context) {
 	}()
 }
 
+// ParseTickerResponse parses the ticker response and returns a new instance of a broker.Quote
 func (c *Client) ParseTickerResponse(msg []byte) (broker.Quote, error) {
 	var err error
 	var quote broker.Quote
@@ -101,6 +107,7 @@ func (c *Client) ParseTickerResponse(msg []byte) (broker.Quote, error) {
 	return quote, nil
 }
 
+// GetURL returns the url for the websocket connection
 func (c *Client) GetURL() *url.URL {
 	return &url.URL{Scheme: "wss", Host: "ws-feed.pro.coinbase.com"}
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// Connector is an interface containing methods for exchanegs
 type Connector interface {
 	Start(context.Context)
 	Connect(*url.URL) error
@@ -26,19 +27,16 @@ type Source struct {
 	Pairs        []string
 	conn         *websocket.Conn
 	exchangeName string
-	// quoteCh      chan<- broker.Quote
-	// api          exchange.API
 }
 
 // NewSource returns a new instance of source
 func NewSource(exchangeName string) Connector {
 	return &Source{
 		exchangeName: exchangeName,
-		// quoteCh:      quoteCh,
-		// api:          api,
 	}
 }
 
+// Start starts the exchange api and should be overridden by gateway
 func (s *Source) Start(ctx context.Context) {}
 
 // Connect connects to the websocket api and stores the connection
@@ -52,6 +50,7 @@ func (s *Source) Connect(url *url.URL) error {
 	return nil
 }
 
+// ReadMessage reads a message from the websocket connection
 func (s *Source) ReadMessage() ([]byte, error) {
 	_, message, err := s.conn.ReadMessage()
 	if err != nil {
@@ -81,6 +80,7 @@ func (s *Source) SendSubscribeRequestWithResponse(ctx context.Context, req inter
 	return nil, nil
 }
 
+// WriteMessage writes a message to the websocket connection
 func (s *Source) WriteMessage(msg []byte) error {
 	err := s.conn.WriteMessage(websocket.TextMessage, msg)
 	if err != nil {

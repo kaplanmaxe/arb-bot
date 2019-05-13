@@ -12,6 +12,7 @@ import (
 	"github.com/kaplanmaxe/helgart/exchange"
 )
 
+// Client represents an API client
 type Client struct {
 	Pairs          []string
 	quoteCh        chan<- broker.Quote
@@ -21,6 +22,7 @@ type Client struct {
 	exchangeName   string
 }
 
+// NewClient returns a new instance of the API
 func NewClient(pairs []string, api api.Connector, quoteCh chan<- broker.Quote, errorCh chan<- error) exchange.API {
 	return &Client{
 		Pairs:          pairs,
@@ -32,6 +34,7 @@ func NewClient(pairs []string, api api.Connector, quoteCh chan<- broker.Quote, e
 	}
 }
 
+// Start starts the api connection and listens for new ticker messages
 func (c *Client) Start(ctx context.Context) {
 	c.api.Connect(c.GetURL())
 	var wg sync.WaitGroup
@@ -47,6 +50,8 @@ func (c *Client) Start(ctx context.Context) {
 	c.StartTickerListener(ctx)
 }
 
+// SendSubscribeRequest overrides the interface method and sends a subscription request and listens
+// for a response
 func (c *Client) SendSubscribeRequest(wg *sync.WaitGroup, req interface{}) error {
 	payload, err := json.Marshal(req)
 	if err != nil {
@@ -67,7 +72,7 @@ func (c *Client) SendSubscribeRequest(wg *sync.WaitGroup, req interface{}) error
 				return
 			}
 
-			var subStatusResponse SubscriptionResponse
+			var subStatusResponse subscriptionResponse
 			err = json.Unmarshal(message, &subStatusResponse)
 			if err != nil {
 				c.errorCh <- fmt.Errorf("Error unmarshalling from %s: %s", c.exchangeName, err)
@@ -87,6 +92,7 @@ func (c *Client) SendSubscribeRequest(wg *sync.WaitGroup, req interface{}) error
 	return nil
 }
 
+// FormatSubscribeRequest creates the type for a subscribe request
 func (c *Client) FormatSubscribeRequest() interface{} {
 	return &subscribeRequest{
 		Event: "subscribe",
@@ -97,6 +103,7 @@ func (c *Client) FormatSubscribeRequest() interface{} {
 	}
 }
 
+// ParseTickerResponse parses the ticker response and returns a new instance of a broker.Quote
 func (c *Client) ParseTickerResponse(msg []byte) (broker.Quote, error) {
 	var err error
 	var quote broker.Quote
@@ -117,6 +124,7 @@ func (c *Client) getPair(res *tickerResponse) {
 	res.Pair = c.channelPairMap[res.ChannelID]
 }
 
+// StartTickerListener starts a new goroutine to listen for new ticker messages
 func (c *Client) StartTickerListener(ctx context.Context) {
 	go func() {
 	cLoop:
@@ -147,6 +155,7 @@ func (c *Client) StartTickerListener(ctx context.Context) {
 	}()
 }
 
+// GetURL returns the url for the websocket connection
 func (c *Client) GetURL() *url.URL {
 	return &url.URL{Scheme: "wss", Host: "ws.kraken.com"}
 }
