@@ -10,6 +10,7 @@ import (
 	"github.com/kaplanmaxe/helgart/binance"
 	"github.com/kaplanmaxe/helgart/broker"
 	"github.com/kaplanmaxe/helgart/coinbase"
+	"github.com/kaplanmaxe/helgart/exchange"
 	"github.com/kaplanmaxe/helgart/kraken"
 )
 
@@ -28,11 +29,17 @@ func main() {
 			Pair: []string{"XBT/USD", "ETH/USD"},
 		},
 	})
-	coinbase := coinbase.NewClient([]string{"BTC-USD", "ETH-USD"})
+	// coinbase := coinbase.NewClient([]string{"BTC-USD", "ETH-USD"})
+	// coinbase := coinbase.NewClient(exchange.NewSource(exchange.COINBASE, quoteCh), []string{"BTC-USD", "ETH-USD"}, quoteCh)
+	coinbase := exchange.NewSource(coinbase.NewClient([]string{"BTC-USD", "ETH-USD"}, quoteCh), exchange.COINBASE, quoteCh)
 	binance := binance.NewClient([]string{"BTCUSD", "ETHUSD"})
 	kraken.Connect(ctx, quoteCh)
-	coinbase.Connect(ctx, quoteCh)
+	// coinbase.Connect(ctx, quoteCh)
+	coinbase.Start(ctx)
 	binance.Connect(ctx, quoteCh)
+
+	// cb := exchange.NewSource(exchange.COINBASE, quoteCh)
+	// cb.Start()
 	go func() {
 		for {
 			select {
