@@ -8,10 +8,11 @@ import (
 	"time"
 
 	"github.com/kaplanmaxe/helgart/binance"
+
+	"github.com/kaplanmaxe/helgart/api"
 	"github.com/kaplanmaxe/helgart/broker"
 	"github.com/kaplanmaxe/helgart/coinbase"
 	"github.com/kaplanmaxe/helgart/exchange"
-	"github.com/kaplanmaxe/helgart/kraken"
 )
 
 func main() {
@@ -22,16 +23,16 @@ func main() {
 	signal.Notify(interrupt, os.Interrupt)
 	ctx, cancel := context.WithCancel(context.Background())
 	// todo: add errors ch
-	kraken := kraken.NewClient([]kraken.Subscription{
-		{
-			Type: kraken.TICKER,
-			// TODO: why won't this work for only one pair?
-			Pair: []string{"XBT/USD", "ETH/USD"},
-		},
-	})
-	coinbase := exchange.NewSource(coinbase.NewClient([]string{"BTC-USD", "ETH-USD"}), exchange.COINBASE, quoteCh)
-	binance := exchange.NewSource(binance.NewClient(), exchange.BINANCE, quoteCh)
-	kraken.Connect(ctx, quoteCh)
+	// kraken := kraken.NewClient([]kraken.Subscription{
+	// 	{
+	// 		Type: kraken.TICKER,
+	// 		// TODO: why won't this work for only one pair?
+	// 		Pair: []string{"XBT/USD", "ETH/USD"},
+	// 	},
+	// })
+	coinbase := coinbase.NewClient([]string{"BTC-USD", "ETH-USD"}, api.NewSource(exchange.COINBASE), quoteCh)
+	binance := binance.NewClient([]string{}, api.NewSource(exchange.BINANCE), quoteCh)
+	// kraken.Connect(ctx, quoteCh)
 	coinbase.Start(ctx)
 	binance.Start(ctx)
 	go func() {

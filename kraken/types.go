@@ -49,11 +49,24 @@ type SubscribeRequest struct {
 	Subscription SubscriptionT `json:"subscription"`
 }
 
+type subscribeRequest struct {
+	Event        string   `json:"event"`
+	Pair         []string `json:"pair"`
+	Subscription struct {
+		Name string `json:"name"`
+	} `json:"subscription"`
+}
+
 // TickerResponse is a struct representing a response from the ticker event
 type TickerResponse struct {
 	ChannelID int
 	Ask       string
 	Bid       string
+}
+
+type tickerResponse struct {
+	Pair  string
+	Price string
 }
 
 type SubscriptionResponse struct {
