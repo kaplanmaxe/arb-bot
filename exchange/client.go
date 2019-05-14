@@ -25,16 +25,3 @@ type API interface {
 	ParseTickerResponse([]byte) ([]broker.Quote, error)
 	FormatSubscribeRequest() interface{}
 }
-
-// Connector is an interface containing methods to perform various actions
-// on ticker websocket connections
-// type Connector interface {
-// 	Start(context.Context)
-// 	Connect() error
-// 	readMessage() ([]byte, error)
-// 	SendSubscribeRequest(interface{}) error
-// 	SendSubscribeRequestWithResponse(context.Context, interface{}) ([]byte, error)
-// 	writeMessage([]byte) error
-// 	StartTickerListener(context.Context)
-// 	Close() error
-// }

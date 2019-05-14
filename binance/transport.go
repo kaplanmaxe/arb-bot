@@ -4,8 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"net/http"
 	"net/url"
 
 	"github.com/kaplanmaxe/helgart/api"
@@ -15,7 +13,6 @@ import (
 
 // Client represents an API client
 type Client struct {
-	Pairs        []string
 	quoteCh      chan<- broker.Quote
 	errorCh      chan<- error
 	api          api.Connector
@@ -23,9 +20,8 @@ type Client struct {
 }
 
 // NewClient returns a new instance of the API
-func NewClient(pairs []string, api api.Connector, quoteCh chan<- broker.Quote, errorCh chan<- error) exchange.API {
+func NewClient(api api.Connector, quoteCh chan<- broker.Quote, errorCh chan<- error) exchange.API {
 	return &Client{
-		Pairs:        pairs,
 		quoteCh:      quoteCh,
 		errorCh:      errorCh,
 		api:          api,
@@ -98,27 +94,4 @@ func (c *Client) ParseTickerResponse(msg []byte) ([]broker.Quote, error) {
 // GetURL returns the url for the websocket connection
 func (c *Client) GetURL() *url.URL {
 	return &url.URL{Scheme: "wss", Host: "stream.binance.com:9443", Path: "/ws/!ticker@arr"}
-}
-
-// GetPairs returns all pairs for an exchange
-func (c *Client) GetPairs() error {
-	u := url.URL{Scheme: "https", Host: "api.binance.com", Path: "/api/v1/exchangeInfo"}
-	res, err := http.Get(u.String())
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	body, err := ioutil.ReadAll(res.Body)
-
-	var response productsResponse
-	err = json.Unmarshal(body, &response)
-	if err != nil {
-		return err
-	}
-	var pairs []string
-	for _, val := range response.Symbols {
-		pairs = append(pairs, val.Pair)
-	}
-	c.Pairs = pairs
-	return nil
 }

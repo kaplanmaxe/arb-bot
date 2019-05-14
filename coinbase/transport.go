@@ -23,9 +23,8 @@ type Client struct {
 }
 
 // NewClient returns a new instance of the API
-func NewClient(pairs []string, api api.Connector, quoteCh chan<- broker.Quote, errorCh chan<- error) exchange.API {
+func NewClient(api api.Connector, quoteCh chan<- broker.Quote, errorCh chan<- error) exchange.API {
 	return &Client{
-		// Pairs:        pairs,
 		quoteCh:      quoteCh,
 		errorCh:      errorCh,
 		api:          api,
