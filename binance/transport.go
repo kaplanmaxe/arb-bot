@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"net/url"
 
 	"github.com/kaplanmaxe/helgart/api"
@@ -64,8 +66,10 @@ func (c *Client) StartTickerListener(ctx context.Context) {
 				res, err := c.ParseTickerResponse(message)
 				if err != nil {
 					c.errorCh <- err
-				} else if res.Pair != "" {
-					c.quoteCh <- res
+				} else if len(res) > 0 {
+					for _, val := range res {
+						c.quoteCh <- val
+					}
 				}
 			}
 		}
@@ -73,22 +77,48 @@ func (c *Client) StartTickerListener(ctx context.Context) {
 }
 
 // ParseTickerResponse parses the ticker response and returns a new instance of a broker.Quote
-func (c *Client) ParseTickerResponse(msg []byte) (broker.Quote, error) {
+func (c *Client) ParseTickerResponse(msg []byte) ([]broker.Quote, error) {
 	var err error
-	var quote broker.Quote
+	var quotes []broker.Quote
 
-	var res tickerResponse
+	var res []tickerResponse
 	err = json.Unmarshal(msg, &res)
 	if err != nil {
-		return broker.Quote{}, fmt.Errorf("Error unmarshalling from %s: %s", c.exchangeName, err)
+		return []broker.Quote{}, fmt.Errorf("Error unmarshalling from %s: %s", c.exchangeName, err)
 	}
-	if res.Pair != "" {
-		quote = *broker.NewExchangeQuote(exchange.BINANCE, res.Pair, res.Price)
+
+	for _, val := range res {
+		if val.Pair != "" {
+			quotes = append(quotes, *broker.NewExchangeQuote(exchange.BINANCE, val.Pair, val.Price))
+		}
 	}
-	return quote, nil
+	return quotes, nil
 }
 
 // GetURL returns the url for the websocket connection
 func (c *Client) GetURL() *url.URL {
-	return &url.URL{Scheme: "wss", Host: "stream.binance.com:9443", Path: "/ws/btcusdt@ticker"}
+	return &url.URL{Scheme: "wss", Host: "stream.binance.com:9443", Path: "/ws/!ticker@arr"}
+}
+
+// GetPairs returns all pairs for an exchange
+func (c *Client) GetPairs() error {
+	u := url.URL{Scheme: "https", Host: "api.binance.com", Path: "/api/v1/exchangeInfo"}
+	res, err := http.Get(u.String())
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	body, err := ioutil.ReadAll(res.Body)
+
+	var response productsResponse
+	err = json.Unmarshal(body, &response)
+	if err != nil {
+		return err
+	}
+	var pairs []string
+	for _, val := range response.Symbols {
+		pairs = append(pairs, val.Pair)
+	}
+	c.Pairs = pairs
+	return nil
 }

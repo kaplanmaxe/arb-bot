@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"net/url"
 
 	"github.com/kaplanmaxe/helgart/api"
@@ -23,7 +25,7 @@ type Client struct {
 // NewClient returns a new instance of the API
 func NewClient(pairs []string, api api.Connector, quoteCh chan<- broker.Quote, errorCh chan<- error) exchange.API {
 	return &Client{
-		Pairs:        pairs,
+		// Pairs:        pairs,
 		quoteCh:      quoteCh,
 		errorCh:      errorCh,
 		api:          api,
@@ -33,6 +35,7 @@ func NewClient(pairs []string, api api.Connector, quoteCh chan<- broker.Quote, e
 
 // Start starts the api connection and listens for new ticker messages
 func (c *Client) Start(ctx context.Context) {
+	c.GetPairs()
 	c.api.Connect(c.GetURL())
 	err := c.api.SendSubscribeRequest(c.FormatSubscribeRequest())
 	if err != nil {
@@ -83,8 +86,10 @@ func (c *Client) StartTickerListener(ctx context.Context) {
 				res, err := c.ParseTickerResponse(message)
 				if err != nil {
 					c.errorCh <- err
-				} else if res.Pair != "" {
-					c.quoteCh <- res
+				} else if len(res) > 0 {
+					if res[0].Pair != "" {
+						c.quoteCh <- res[0]
+					}
 				}
 			}
 		}
@@ -92,22 +97,45 @@ func (c *Client) StartTickerListener(ctx context.Context) {
 }
 
 // ParseTickerResponse parses the ticker response and returns a new instance of a broker.Quote
-func (c *Client) ParseTickerResponse(msg []byte) (broker.Quote, error) {
+func (c *Client) ParseTickerResponse(msg []byte) ([]broker.Quote, error) {
 	var err error
-	var quote broker.Quote
+	var quotes []broker.Quote
 
 	var res tickerResponse
 	err = json.Unmarshal(msg, &res)
 	if err != nil {
-		return broker.Quote{}, fmt.Errorf("Error unmarshalling from %s: %s", c.exchangeName, err)
+		return []broker.Quote{}, fmt.Errorf("Error unmarshalling from %s: %s", c.exchangeName, err)
 	}
 	if res.Pair != "" {
-		quote = *broker.NewExchangeQuote(exchange.COINBASE, res.Pair, res.Price)
+		quotes = append(quotes, *broker.NewExchangeQuote(exchange.COINBASE, res.Pair, res.Price))
 	}
-	return quote, nil
+	return quotes, nil
 }
 
 // GetURL returns the url for the websocket connection
 func (c *Client) GetURL() *url.URL {
 	return &url.URL{Scheme: "wss", Host: "ws-feed.pro.coinbase.com"}
+}
+
+// GetPairs returns all pairs for an exchange
+func (c *Client) GetPairs() error {
+	u := url.URL{Scheme: "https", Host: "api.pro.coinbase.com", Path: "/products"}
+	res, err := http.Get(u.String())
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	body, err := ioutil.ReadAll(res.Body)
+
+	var response []productsResponse
+	err = json.Unmarshal(body, &response)
+	if err != nil {
+		return err
+	}
+	var pairs []string
+	for _, val := range response {
+		pairs = append(pairs, val.Pair)
+	}
+	c.Pairs = pairs
+	return nil
 }

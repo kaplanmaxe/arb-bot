@@ -33,3 +33,13 @@ type tickerResponse struct {
 	Price       string `json:"a"`
 	Pair        string `json:"s"`
 }
+
+type productsResponse struct {
+	Symbols []symbol `json:"symbols"`
+}
+
+type symbol struct {
+	Pair          string `json:"symbol"`
+	BaseCurrency  string `json:"baseAsset"`
+	QuoteCurrency string `json:"quoteAsset"`
+}

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"net/url"
 	"sync"
 
@@ -23,9 +25,9 @@ type Client struct {
 }
 
 // NewClient returns a new instance of the API
-func NewClient(pairs []string, api api.Connector, quoteCh chan<- broker.Quote, errorCh chan<- error) exchange.API {
+func NewClient(api api.Connector, quoteCh chan<- broker.Quote, errorCh chan<- error) exchange.API {
 	return &Client{
-		Pairs:          pairs,
+		// Pairs:          pairs,
 		quoteCh:        quoteCh,
 		errorCh:        errorCh,
 		api:            api,
@@ -36,6 +38,7 @@ func NewClient(pairs []string, api api.Connector, quoteCh chan<- broker.Quote, e
 
 // Start starts the api connection and listens for new ticker messages
 func (c *Client) Start(ctx context.Context) {
+	c.GetPairs()
 	c.api.Connect(c.GetURL())
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -96,7 +99,7 @@ func (c *Client) SendSubscribeRequest(wg *sync.WaitGroup, req interface{}) error
 func (c *Client) FormatSubscribeRequest() interface{} {
 	return &subscribeRequest{
 		Event: "subscribe",
-		Pair:  []string{"XBT/USD", "ETH/USD"},
+		Pair:  c.Pairs,
 		Subscription: struct {
 			Name string `json:"name"`
 		}{Name: TICKER},
@@ -104,20 +107,20 @@ func (c *Client) FormatSubscribeRequest() interface{} {
 }
 
 // ParseTickerResponse parses the ticker response and returns a new instance of a broker.Quote
-func (c *Client) ParseTickerResponse(msg []byte) (broker.Quote, error) {
+func (c *Client) ParseTickerResponse(msg []byte) ([]broker.Quote, error) {
 	var err error
-	var quote broker.Quote
+	var quotes []broker.Quote
 
 	var res tickerResponse
 	err = json.Unmarshal(msg, &res)
 	if err != nil {
-		return broker.Quote{}, fmt.Errorf("Error unmarshalling from %s: %s", c.exchangeName, err)
+		return []broker.Quote{}, fmt.Errorf("Error unmarshalling from %s: %s", c.exchangeName, err)
 	}
 	c.getPair(&res)
 	if res.Pair != "" {
-		quote = *broker.NewExchangeQuote(c.exchangeName, res.Pair, res.Price)
+		quotes = append(quotes, *broker.NewExchangeQuote(c.exchangeName, res.Pair, res.Price))
 	}
-	return quote, nil
+	return quotes, nil
 }
 
 func (c *Client) getPair(res *tickerResponse) {
@@ -146,10 +149,11 @@ func (c *Client) StartTickerListener(ctx context.Context) {
 				res, err := c.ParseTickerResponse(message)
 				if err != nil {
 					c.errorCh <- err
-				} else if res.Pair != "" {
-					c.quoteCh <- res
+				} else if len(res) > 0 {
+					if res[0].Pair != "" {
+						c.quoteCh <- res[0]
+					}
 				}
-
 			}
 		}
 	}()
@@ -158,4 +162,27 @@ func (c *Client) StartTickerListener(ctx context.Context) {
 // GetURL returns the url for the websocket connection
 func (c *Client) GetURL() *url.URL {
 	return &url.URL{Scheme: "wss", Host: "ws.kraken.com"}
+}
+
+// GetPairs returns all pairs for an exchange
+func (c *Client) GetPairs() error {
+	u := url.URL{Scheme: "https", Host: "api.kraken.com", Path: "/0/public/AssetPairs"}
+	res, err := http.Get(u.String())
+	if err != nil {
+		return err
+	}
+	defer res.Body.Close()
+	body, err := ioutil.ReadAll(res.Body)
+
+	var pairsResponse assetPairResponse
+	err = json.Unmarshal(body, &pairsResponse)
+	if err != nil {
+		return err
+	}
+	var pairs []string
+	for key := range pairsResponse.Result {
+		pairs = append(pairs, pairsResponse.Result[key].Pair)
+	}
+	c.Pairs = pairs
+	return nil
 }

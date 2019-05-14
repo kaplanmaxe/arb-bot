@@ -71,3 +71,17 @@ func (s *tickerResponse) UnmarshalJSON(msg []byte) error {
 
 	return nil
 }
+
+type assetPairResponse struct {
+	Error  []string         `json:"error"`
+	Result assetPairsResult `json:"result"`
+}
+
+type assetPairsResult map[string]pair
+
+type pair struct {
+	// AltName string `json:"altname"`
+	Pair          string `json:"wsname"`
+	BaseCurrency  string `json:"base"`
+	QuoteCurrency string `json:"quote"`
+}

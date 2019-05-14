@@ -22,19 +22,19 @@ const (
 type API interface {
 	Start(context.Context)
 	GetURL() *url.URL
-	ParseTickerResponse([]byte) (broker.Quote, error)
+	ParseTickerResponse([]byte) ([]broker.Quote, error)
 	FormatSubscribeRequest() interface{}
 }
 
 // Connector is an interface containing methods to perform various actions
 // on ticker websocket connections
-type Connector interface {
-	Start(context.Context)
-	Connect() error
-	readMessage() ([]byte, error)
-	SendSubscribeRequest(interface{}) error
-	SendSubscribeRequestWithResponse(context.Context, interface{}) ([]byte, error)
-	writeMessage([]byte) error
-	StartTickerListener(context.Context)
-	Close() error
-}
+// type Connector interface {
+// 	Start(context.Context)
+// 	Connect() error
+// 	readMessage() ([]byte, error)
+// 	SendSubscribeRequest(interface{}) error
+// 	SendSubscribeRequestWithResponse(context.Context, interface{}) ([]byte, error)
+// 	writeMessage([]byte) error
+// 	StartTickerListener(context.Context)
+// 	Close() error
+// }

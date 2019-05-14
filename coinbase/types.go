@@ -48,3 +48,9 @@ type tickerResponse struct {
 	Pair  string `json:"product_id"`
 	Price string `json:"best_ask"`
 }
+
+type productsResponse struct {
+	Pair          string `json:"id"`
+	BaseCurrency  string `json:"base_currency"`
+	QuoteCurrency string `json:"quote_currency"`
+}

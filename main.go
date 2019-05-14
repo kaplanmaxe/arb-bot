@@ -20,13 +20,14 @@ import (
 func main() {
 	log.Print("Starting quote server")
 	interrupt := make(chan os.Signal, 1)
+	doneCh := make(chan struct{}, 1)
 	quoteCh := make(chan broker.Quote)
 	errorCh := make(chan error)
-	doneCh := make(chan struct{}, 1)
+
 	signal.Notify(interrupt, os.Interrupt)
 	ctx, cancel := context.WithCancel(context.Background())
 
-	kraken := kraken.NewClient([]string{"XBT/USD", "ETH/USD"}, api.NewSource(exchange.KRAKEN), quoteCh, errorCh)
+	kraken := kraken.NewClient(api.NewSource(exchange.KRAKEN), quoteCh, errorCh)
 	coinbase := coinbase.NewClient([]string{"BTC-USD", "ETH-USD"}, api.NewSource(exchange.COINBASE), quoteCh, errorCh)
 	binance := binance.NewClient([]string{}, api.NewSource(exchange.BINANCE), quoteCh, errorCh)
 
@@ -40,7 +41,7 @@ func main() {
 			case quote := <-quoteCh:
 				log.Printf("Quote: %#v", quote)
 			case err := <-errorCh:
-				fmt.Printf("Error: %s", err)
+				fmt.Printf("Error: %s\n", err)
 			case <-interrupt:
 				log.Println("interrupt received")
 				cancel()
