@@ -1,6 +1,6 @@
 FILES := $(shell go list ./...)
 
-default: run
+default: build
 
 build:
 	@(go build -o ./bin/helgart main.go)
