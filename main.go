@@ -27,13 +27,12 @@ func main() {
 	signal.Notify(interrupt, os.Interrupt)
 	ctx, cancel := context.WithCancel(context.Background())
 
-	kraken := kraken.NewClient(api.NewSource(exchange.KRAKEN), quoteCh, errorCh)
-	coinbase := coinbase.NewClient(api.NewSource(exchange.COINBASE), quoteCh, errorCh)
-	binance := binance.NewClient(api.NewSource(exchange.BINANCE), quoteCh, errorCh)
-
-	kraken.Start(ctx)
-	coinbase.Start(ctx)
-	binance.Start(ctx)
+	engine := exchange.NewEngine([]exchange.API{
+		kraken.NewClient(api.NewSource(exchange.KRAKEN), quoteCh, errorCh),
+		coinbase.NewClient(api.NewSource(exchange.COINBASE), quoteCh, errorCh),
+		binance.NewClient(api.NewSource(exchange.BINANCE), quoteCh, errorCh),
+	})
+	engine.Start(ctx)
 
 	go func() {
 		for {

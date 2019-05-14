@@ -25,3 +25,23 @@ type API interface {
 	ParseTickerResponse([]byte) ([]broker.Quote, error)
 	FormatSubscribeRequest() interface{}
 }
+
+type Engine interface {
+	Start(context.Context)
+}
+
+type Group struct {
+	exchanges []API
+}
+
+func NewEngine(exchanges []API) Engine {
+	return &Group{
+		exchanges: exchanges,
+	}
+}
+
+func (g *Group) Start(ctx context.Context) {
+	for _, exchange := range g.exchanges {
+		exchange.Start(ctx)
+	}
+}
