@@ -7,9 +7,15 @@
   revision = "66b9c49e59c6c48f0ffce28c2d8b8a5678502c6d"
   version = "v1.4.0"
 
+[[projects]]
+  name = "github.com/posener/wstest"
+  packages = ["."]
+  revision = "04b166ca0bf1313d8abf8625b59c5979c7bc59a2"
+  version = "v1.1"
+
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "9706bf9ae14b00c4beb353922f4b2d67499813885dd44ae2b4c5a85001d60bd7"
+  inputs-digest = "2297a878d6f504376c7a7f296bf33b4d908aea45c972125662306114ce18383b"
   solver-name = "gps-cdcl"
   solver-version = 1

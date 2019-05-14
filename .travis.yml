@@ -1,9 +1,0 @@
-language: go
-
-go:
-  - 1.12.4
-
-script:
-  - go get -u golang.org/x/lint/golint
-  - make
-  - make lint
