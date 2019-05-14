@@ -90,5 +90,5 @@ func (c *Client) ParseTickerResponse(msg []byte) (broker.Quote, error) {
 
 // GetURL returns the url for the websocket connection
 func (c *Client) GetURL() *url.URL {
-	return &url.URL{Scheme: "wss", Host: "stream.binance.com:9443", Path: "/ws/bnbbtc@ticker"}
+	return &url.URL{Scheme: "wss", Host: "stream.binance.com:9443", Path: "/ws/btcusdt@ticker"}
 }
