@@ -15,7 +15,7 @@ import (
 
 // Client represents an API client
 type Client struct {
-	Pairs        []string
+	pairs        []string
 	quoteCh      chan<- broker.Quote
 	errorCh      chan<- error
 	api          api.Connector
@@ -50,14 +50,14 @@ func (c *Client) Start(ctx context.Context) {
 func (c *Client) FormatSubscribeRequest() interface{} {
 	return &subscribeRequest{
 		Type:       "subscribe",
-		ProductIDs: c.Pairs,
+		ProductIDs: c.pairs,
 		Channels: []struct {
 			Name       string   `json:"name"`
 			ProductIDs []string `json:"product_ids"`
 		}{
 			{
 				Name:       "ticker",
-				ProductIDs: c.Pairs,
+				ProductIDs: c.pairs,
 			},
 		},
 	}
@@ -135,6 +135,6 @@ func (c *Client) GetPairs() error {
 	for _, val := range response {
 		pairs = append(pairs, val.Pair)
 	}
-	c.Pairs = pairs
+	c.pairs = pairs
 	return nil
 }

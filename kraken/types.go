@@ -80,7 +80,6 @@ type assetPairResponse struct {
 type assetPairsResult map[string]pair
 
 type pair struct {
-	// AltName string `json:"altname"`
 	Pair          string `json:"wsname"`
 	BaseCurrency  string `json:"base"`
 	QuoteCurrency string `json:"quote"`

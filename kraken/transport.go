@@ -16,7 +16,7 @@ import (
 
 // Client represents an API client
 type Client struct {
-	Pairs          []string
+	pairs          []string
 	quoteCh        chan<- broker.Quote
 	errorCh        chan<- error
 	api            api.Connector
@@ -79,7 +79,7 @@ func (c *Client) SendSubscribeRequest(wg *sync.WaitGroup, req interface{}) error
 			if err != nil {
 				c.errorCh <- fmt.Errorf("Error unmarshalling from %s: %s", c.exchangeName, err)
 			}
-			if subs < len(c.Pairs) {
+			if subs < len(c.pairs) {
 				c.channelPairMap[subStatusResponse.ChannelID] = subStatusResponse.Pair
 			} else {
 				wg.Done()
@@ -98,7 +98,7 @@ func (c *Client) SendSubscribeRequest(wg *sync.WaitGroup, req interface{}) error
 func (c *Client) FormatSubscribeRequest() interface{} {
 	return &subscribeRequest{
 		Event: "subscribe",
-		Pair:  c.Pairs,
+		Pair:  c.pairs,
 		Subscription: struct {
 			Name string `json:"name"`
 		}{Name: TICKER},
@@ -182,6 +182,6 @@ func (c *Client) GetPairs() error {
 	for key := range pairsResponse.Result {
 		pairs = append(pairs, pairsResponse.Result[key].Pair)
 	}
-	c.Pairs = pairs
+	c.pairs = pairs
 	return nil
 }
