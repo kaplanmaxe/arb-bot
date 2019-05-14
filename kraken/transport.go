@@ -20,7 +20,7 @@ type Client struct {
 	quoteCh        chan<- broker.Quote
 	errorCh        chan<- error
 	api            api.Connector
-	channelPairMap ChannelPairMap
+	channelPairMap channelPairMap
 	exchangeName   string
 }
 
@@ -30,7 +30,7 @@ func NewClient(api api.Connector, quoteCh chan<- broker.Quote, errorCh chan<- er
 		quoteCh:        quoteCh,
 		errorCh:        errorCh,
 		api:            api,
-		channelPairMap: make(ChannelPairMap),
+		channelPairMap: make(channelPairMap),
 		exchangeName:   exchange.KRAKEN,
 	}
 }

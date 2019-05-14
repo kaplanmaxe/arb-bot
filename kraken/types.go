@@ -4,13 +4,6 @@ import (
 	"encoding/json"
 )
 
-// GeneralRequest is a struct representing a basic message request
-// Such as a ping
-type GeneralRequest struct {
-	Event string `json:"event"`
-	ReqID int    `json:"reqid"`
-}
-
 // Enum for subscription events
 const (
 	TICKER = "ticker"
@@ -55,8 +48,8 @@ type subscriptionResponse struct {
 	} `json:"subscription"`
 }
 
-// ChannelPairMap maps a channelid returned in the api to a specific pair
-type ChannelPairMap map[int]string
+// channelPairMap maps a channelid returned in the api to a specific pair
+type channelPairMap map[int]string
 
 func (s *tickerResponse) UnmarshalJSON(msg []byte) error {
 	// Hack for weird kraken response
