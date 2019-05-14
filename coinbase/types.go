@@ -27,6 +27,7 @@ type subscribeRequest struct {
 	} `json:"channels"`
 }
 
+// TickerResponse is a response from coinbase api
 // {
 // 	"type":"ticker",
 // 	"sequence":6612313774,
@@ -44,7 +45,7 @@ type subscribeRequest struct {
 // 	"trade_id":46871901,
 // 	"last_size":"19.17919361"
 // }
-type tickerResponse struct {
+type TickerResponse struct {
 	Pair  string `json:"product_id"`
 	Price string `json:"best_ask"`
 }

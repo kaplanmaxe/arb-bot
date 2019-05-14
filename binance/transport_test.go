@@ -1,12 +1,12 @@
-package coinbase_test
+package binance_test
 
 import (
 	"context"
 	"encoding/json"
 	"testing"
 
+	"github.com/kaplanmaxe/helgart/binance"
 	"github.com/kaplanmaxe/helgart/broker"
-	"github.com/kaplanmaxe/helgart/coinbase"
 	"github.com/kaplanmaxe/helgart/mock"
 )
 
@@ -15,18 +15,21 @@ func TestStart(t *testing.T) {
 	errorCh := make(chan error, 1)
 	ctx := context.TODO()
 
-	client := coinbase.NewClient(mock.NewMockConnector(), quoteCh, errorCh)
+	client := binance.NewClient(mock.NewMockConnector(), quoteCh, errorCh)
 	client.Start(ctx)
 
-	mockResponse := &coinbase.TickerResponse{
-		Pair:  "BTCUSD",
-		Price: "1000000.00",
+	mockResponse := []binance.TickerResponse{
+		binance.TickerResponse{
+			AskQuantity: "123",
+			Pair:        "BTCUSD",
+			Price:       "1000000.00",
+		},
 	}
 	msg, err := json.Marshal(mockResponse)
 	if err != nil {
 		t.Fatalf("Error marshalling json: %s", err)
 	}
-	err = client.API.WriteMessage(msg)
+	err = client.API.WriteMessage(msg) // test
 	if err != nil {
 		t.Fatalf("Error writing message: %s", err)
 	}
@@ -34,7 +37,7 @@ listener:
 	for {
 		select {
 		case quote := <-quoteCh:
-			if mockResponse.Pair != quote.Pair || mockResponse.Price != quote.Price {
+			if mockResponse[0].Pair != quote.Pair || mockResponse[0].Price != quote.Price {
 				t.Fatalf("Expecting response %#v but got %#v", mockResponse, quote)
 			}
 			break listener

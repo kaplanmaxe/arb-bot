@@ -20,7 +20,7 @@ const (
 
 // API is an interface each exchange client should satisfy
 type API interface {
-	Start(context.Context)
+	Start(context.Context) error
 	GetURL() *url.URL
 	ParseTickerResponse([]byte) ([]broker.Quote, error)
 	FormatSubscribeRequest() interface{}

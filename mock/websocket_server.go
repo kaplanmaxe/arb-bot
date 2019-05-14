@@ -49,21 +49,3 @@ func (s *echoServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func NewWebsocketServer() *websocket.Dialer {
 	return wstest.NewDialer(&echoServer{})
 }
-
-func echo(w http.ResponseWriter, r *http.Request) {
-	c, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		return
-	}
-	defer c.Close()
-	for {
-		mt, message, err := c.ReadMessage()
-		if err != nil {
-			break
-		}
-		err = c.WriteMessage(mt, message)
-		if err != nil {
-			break
-		}
-	}
-}

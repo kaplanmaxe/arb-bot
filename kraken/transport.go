@@ -36,20 +36,24 @@ func NewClient(api api.Connector, quoteCh chan<- broker.Quote, errorCh chan<- er
 }
 
 // Start starts the api connection and listens for new ticker messages
-func (c *Client) Start(ctx context.Context) {
-	c.GetPairs()
+func (c *Client) Start(ctx context.Context) error {
+	err := c.GetPairs()
+	if err != nil {
+		return err
+	}
 	c.api.Connect(c.GetURL())
+	if err != nil {
+		return err
+	}
 	var wg sync.WaitGroup
 	wg.Add(1)
-	err := c.SendSubscribeRequest(&wg, c.FormatSubscribeRequest())
+	err = c.SendSubscribeRequest(&wg, c.FormatSubscribeRequest())
 	if err != nil {
-		go func() {
-			c.errorCh <- err
-		}()
-		return
+		return err
 	}
 	wg.Wait()
 	c.StartTickerListener(ctx)
+	return nil
 }
 
 // SendSubscribeRequest overrides the interface method and sends a subscription request and listens

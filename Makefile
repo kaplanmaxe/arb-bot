@@ -11,4 +11,9 @@ run: build
 lint:
 	@(golint --set_exit_status ${FILES})
 
-.PHONY: build run lint
+unit:
+	@(go test -cover ./...)
+
+test: lint unit
+
+.PHONY: build run lint unit test

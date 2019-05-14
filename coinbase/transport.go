@@ -18,32 +18,36 @@ type Client struct {
 	pairs        []string
 	quoteCh      chan<- broker.Quote
 	errorCh      chan<- error
-	api          api.Connector
+	API          api.Connector
 	exchangeName string
 }
 
 // NewClient returns a new instance of the API
-func NewClient(api api.Connector, quoteCh chan<- broker.Quote, errorCh chan<- error) exchange.API {
+func NewClient(api api.Connector, quoteCh chan<- broker.Quote, errorCh chan<- error) *Client {
 	return &Client{
 		quoteCh:      quoteCh,
 		errorCh:      errorCh,
-		api:          api,
+		API:          api,
 		exchangeName: exchange.COINBASE,
 	}
 }
 
 // Start starts the api connection and listens for new ticker messages
-func (c *Client) Start(ctx context.Context) {
-	c.GetPairs()
-	c.api.Connect(c.GetURL())
-	err := c.api.SendSubscribeRequest(c.FormatSubscribeRequest())
+func (c *Client) Start(ctx context.Context) error {
+	err := c.GetPairs()
 	if err != nil {
-		go func() {
-			c.errorCh <- err
-		}()
-		return
+		return err
+	}
+	err = c.API.Connect(c.GetURL())
+	if err != nil {
+		return err
+	}
+	err = c.API.SendSubscribeRequest(c.FormatSubscribeRequest())
+	if err != nil {
+		return err
 	}
 	c.StartTickerListener(ctx)
+	return nil
 }
 
 // FormatSubscribeRequest creates the type for a subscribe request
@@ -68,7 +72,7 @@ func (c *Client) StartTickerListener(ctx context.Context) {
 	go func() {
 	cLoop:
 		for {
-			message, err := c.api.ReadMessage()
+			message, err := c.API.ReadMessage()
 			if err != nil {
 				c.errorCh <- fmt.Errorf("Error reading from %s: %s", c.exchangeName, err)
 				return
@@ -76,7 +80,7 @@ func (c *Client) StartTickerListener(ctx context.Context) {
 
 			select {
 			case <-ctx.Done():
-				err := c.api.Close()
+				err := c.API.Close()
 				if err != nil {
 					c.errorCh <- fmt.Errorf("Error closing %s: %s", c.exchangeName, err)
 				}
@@ -100,7 +104,7 @@ func (c *Client) ParseTickerResponse(msg []byte) ([]broker.Quote, error) {
 	var err error
 	var quotes []broker.Quote
 
-	var res tickerResponse
+	var res TickerResponse
 	err = json.Unmarshal(msg, &res)
 	if err != nil {
 		return []broker.Quote{}, fmt.Errorf("Error unmarshalling from %s: %s", c.exchangeName, err)
