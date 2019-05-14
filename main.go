@@ -42,7 +42,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	err = cb.Start(ctx) // test
+	err = cb.Start(ctx)
 	if err != nil {
 		log.Fatal(err)
 	}
