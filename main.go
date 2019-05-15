@@ -10,6 +10,7 @@ import (
 
 	"github.com/kaplanmaxe/helgart/api"
 	"github.com/kaplanmaxe/helgart/binance"
+	"github.com/kaplanmaxe/helgart/bitfinex"
 	"github.com/kaplanmaxe/helgart/broker"
 	"github.com/kaplanmaxe/helgart/coinbase"
 	"github.com/kaplanmaxe/helgart/exchange"
@@ -30,6 +31,7 @@ func main() {
 		kraken.NewClient(api.NewSource(exchange.KRAKEN), quoteCh, errorCh),
 		coinbase.NewClient(api.NewSource(exchange.COINBASE), quoteCh, errorCh),
 		binance.NewClient(api.NewSource(exchange.BINANCE), quoteCh, errorCh),
+		bitfinex.NewClient(api.NewSource(exchange.BITFINEX), quoteCh, errorCh),
 	})
 
 	err := broker.Start(ctx)
@@ -49,7 +51,8 @@ func main() {
 				log.Println("interrupt received")
 				cancel()
 				select {
-				case <-time.After(4 * time.Second):
+				// TODO: race condition. fix
+				case <-time.After(7 * time.Second):
 					close(doneCh)
 					return
 				}

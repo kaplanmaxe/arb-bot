@@ -1,4 +1,4 @@
-package kraken
+package bitfinex
 
 import (
 	"context"
@@ -32,7 +32,7 @@ func NewClient(api api.Connector, quoteCh chan<- broker.Quote, errorCh chan<- er
 		errorCh:        errorCh,
 		API:            api,
 		channelPairMap: make(exchange.ChannelPairMap),
-		exchangeName:   exchange.KRAKEN,
+		exchangeName:   exchange.BITFINEX,
 	}
 }
 
@@ -47,76 +47,90 @@ func (c *Client) Start(ctx context.Context) error {
 		return err
 	}
 
-	doneCh, err := c.SendSubscribeRequest(c.FormatSubscribeRequest())
-	if err != nil {
-		return err
+	doneCh := make(chan struct{}, 1)
+	go c.startSubscribeListener(doneCh)
+	for key, pair := range c.Pairs {
+		req := &SubscriptionRequest{
+			Event:   "subscribe",
+			Channel: "ticker",
+			Symbol:  "t" + strings.ToUpper(pair),
+		}
+
+		err := c.SendSubscribeRequest(req)
+		if err != nil {
+			return err
+		}
+
+		if key == len(c.Pairs)-1 {
+			<-doneCh
+			c.StartTickerListener(ctx)
+		}
 	}
-	go func() {
-		<-doneCh
-		c.StartTickerListener(ctx)
-	}()
 
 	return nil
 }
 
 // SendSubscribeRequest overrides the interface method and sends a subscription request and listens
 // for a response
-func (c *Client) SendSubscribeRequest(req interface{}) (<-chan struct{}, error) {
-	doneCh := make(chan struct{})
+func (c *Client) SendSubscribeRequest(req interface{}) error {
+	// doneCh := make(chan struct{})
 	payload, err := json.Marshal(req)
 	if err != nil {
-		return doneCh, fmt.Errorf("Error marshalling %s subscribe request: %s", c.exchangeName, err)
+		return fmt.Errorf("Error marshalling %s subscribe request: %s", c.exchangeName, err)
 	}
+
 	err = c.API.WriteMessage(payload)
 	if err != nil {
-		return doneCh, fmt.Errorf("Error sending subscribe request for %s: %s", c.exchangeName, err)
+		return fmt.Errorf("Error sending subscribe request for %s: %s", c.exchangeName, err)
 	}
-	go func() {
-		var mtx sync.Mutex
-		subs := 0
-	Loop:
-		for {
-			message, err := c.API.ReadMessage()
-			if err != nil {
-				c.errorCh <- fmt.Errorf("Error reading message from %s: %s", c.exchangeName, err)
-				return
-			}
+	return nil
+}
 
-			var subStatusResponse SubscriptionResponse
-			// TODO: dirty, dirty hack for testability. Need interfaces
-			if strings.Contains(string(message), "{\"event\":") {
-				continue
-			}
-
-			err = json.Unmarshal(message, &subStatusResponse)
-			if err != nil {
-				c.errorCh <- fmt.Errorf("Error unmarshalling from %s: %s", c.exchangeName, err)
-			}
-
-			if subs < len(c.Pairs) {
-				c.channelPairMap[subStatusResponse.ChannelID] = subStatusResponse.Pair
-			} else {
-				close(doneCh)
-				break Loop
-			}
-			mtx.Lock()
-			subs++
-			mtx.Unlock()
+func (c *Client) startSubscribeListener(doneCh chan<- struct{}) {
+	var mtx sync.Mutex
+	subs := 0
+Loop:
+	for {
+		mtx.Lock()
+		message, err := c.API.ReadMessage()
+		mtx.Unlock()
+		if err != nil {
+			c.errorCh <- fmt.Errorf("Error reading message from %s: %s", c.exchangeName, err)
+			return
 		}
-		return
-	}()
-	return doneCh, nil
+
+		var subStatusResponse SubscriptionResponse
+		// // TODO: dirty, dirty hack for testability. Need interfaces
+		if strings.Contains(string(message), "[") {
+			continue
+		}
+
+		// Weird bitfinex bug where it sends nothing?
+		if len(message) == 0 {
+			continue
+		}
+
+		err = json.Unmarshal(message, &subStatusResponse)
+		if err != nil {
+			c.errorCh <- fmt.Errorf("Error unmarshalling from %s: %s", c.exchangeName, err)
+		}
+
+		if subs < len(c.Pairs) {
+			c.channelPairMap[subStatusResponse.ChannelID] = subStatusResponse.Pair
+		} else {
+			close(doneCh)
+			break Loop
+		}
+		mtx.Lock()
+		subs++
+		mtx.Unlock()
+	}
+	return
 }
 
 // FormatSubscribeRequest creates the type for a subscribe request
 func (c *Client) FormatSubscribeRequest() interface{} {
-	return &SubscribeRequest{
-		Event: "subscribe",
-		Pair:  c.Pairs,
-		Subscription: struct {
-			Name string `json:"name"`
-		}{Name: TICKER},
-	}
+	return nil
 }
 
 // ParseTickerResponse parses the ticker response and returns a new instance of a broker.Quote
@@ -163,7 +177,7 @@ func (c *Client) StartTickerListener(ctx context.Context) {
 				if err != nil {
 					c.errorCh <- err
 				} else if len(res) > 0 {
-					if res[0].Pair != "" {
+					if res[0].Price != "" {
 						c.quoteCh <- res[0]
 					}
 				}
@@ -174,12 +188,12 @@ func (c *Client) StartTickerListener(ctx context.Context) {
 
 // GetURL returns the url for the websocket connection
 func (c *Client) GetURL() *url.URL {
-	return &url.URL{Scheme: "wss", Host: "ws.kraken.com"}
+	return &url.URL{Scheme: "wss", Host: "api-pub.bitfinex.com", Path: "/ws/2"}
 }
 
 // GetPairs returns all pairs for an exchange
 func (c *Client) GetPairs() error {
-	u := url.URL{Scheme: "https", Host: "api.kraken.com", Path: "/0/public/AssetPairs"}
+	u := url.URL{Scheme: "https", Host: "api.bitfinex.com", Path: "/v1/symbols"}
 	res, err := http.Get(u.String())
 	if err != nil {
 		return err
@@ -187,14 +201,14 @@ func (c *Client) GetPairs() error {
 	defer res.Body.Close()
 	body, err := ioutil.ReadAll(res.Body)
 
-	var pairsResponse assetPairResponse
+	var pairsResponse []string
 	err = json.Unmarshal(body, &pairsResponse)
 	if err != nil {
 		return err
 	}
 	var pairs []string
-	for key := range pairsResponse.Result {
-		pairs = append(pairs, pairsResponse.Result[key].Pair)
+	for _, pair := range pairsResponse {
+		pairs = append(pairs, pair)
 	}
 	c.Pairs = pairs
 	return nil
