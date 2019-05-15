@@ -11,27 +11,31 @@ import (
 	"github.com/kaplanmaxe/helgart/api"
 )
 
-type MockConnector struct {
+// Connector is a mock connector for testing
+type Connector struct {
 	conn         *websocket.Conn
 	exchangeName string
 	URL          *url.URL
 }
 
-func NewMockConnector() api.Connector {
-	return &MockConnector{
+// NewConnector returns a new mock connector
+func NewConnector() api.Connector {
+	return &Connector{
 		exchangeName: "mockWebsocketServer",
 		URL:          &url.URL{Scheme: "ws", Host: "example.com", Path: "/ws"},
 	}
 }
 
-func (m *MockConnector) Start(ctx context.Context) {
+// Start starts the client
+func (m *Connector) Start(ctx context.Context) {
 	err := m.Connect(m.URL)
 	if err != nil {
 		log.Fatalf("Error connecting: %s", err)
 	}
 }
 
-func (m *MockConnector) Connect(url *url.URL) error {
+// Connect connects to the web socket
+func (m *Connector) Connect(url *url.URL) error {
 	dialer := NewWebsocketServer()
 	c, _, err := dialer.Dial(m.URL.String(), nil)
 	if err != nil {
@@ -46,7 +50,7 @@ func (m *MockConnector) Connect(url *url.URL) error {
 }
 
 // ReadMessage reads a message from the websocket connection
-func (m *MockConnector) ReadMessage() ([]byte, error) {
+func (m *Connector) ReadMessage() ([]byte, error) {
 	_, message, err := m.conn.ReadMessage()
 	if err != nil {
 		return []byte{}, err
@@ -56,7 +60,7 @@ func (m *MockConnector) ReadMessage() ([]byte, error) {
 
 // SendSubscribeRequest sends a subscribe request. Some exchanges require this
 // and some don't
-func (m *MockConnector) SendSubscribeRequest(req interface{}) error {
+func (m *Connector) SendSubscribeRequest(req interface{}) error {
 	payload, err := json.Marshal(req)
 	if err != nil {
 		return err
@@ -66,7 +70,7 @@ func (m *MockConnector) SendSubscribeRequest(req interface{}) error {
 }
 
 // SendSubscribeRequestWithResponse sends a subscribe request and returns the response
-func (m *MockConnector) SendSubscribeRequestWithResponse(ctx context.Context, req interface{}) ([]byte, error) {
+func (m *Connector) SendSubscribeRequestWithResponse(ctx context.Context, req interface{}) ([]byte, error) {
 	payload, err := json.Marshal(req)
 	if err != nil {
 		return nil, err
@@ -76,7 +80,7 @@ func (m *MockConnector) SendSubscribeRequestWithResponse(ctx context.Context, re
 }
 
 // WriteMessage writes a message to the websocket connection
-func (m *MockConnector) WriteMessage(msg []byte) error {
+func (m *Connector) WriteMessage(msg []byte) error {
 	err := m.conn.WriteMessage(websocket.TextMessage, msg)
 	if err != nil {
 		return err
@@ -86,11 +90,11 @@ func (m *MockConnector) WriteMessage(msg []byte) error {
 
 // StartTickerListener starts a listener in a new goroutine for any new quotes
 // This should be overridden by each gateway
-func (m *MockConnector) StartTickerListener(ctx context.Context) {
+func (m *Connector) StartTickerListener(ctx context.Context) {
 }
 
 // Close closes the connection
-func (m *MockConnector) Close() error {
+func (m *Connector) Close() error {
 	log.Printf("%s interrupt\n", m.exchangeName)
 	err := m.conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNormalClosure, ""))
 	if err != nil {

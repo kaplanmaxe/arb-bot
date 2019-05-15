@@ -33,12 +33,14 @@ type SubscribeRequest struct {
 	} `json:"subscription"`
 }
 
+// TickerResponse is a response from the ws api with a tick
 type TickerResponse struct {
 	ChannelID int
 	Pair      string
 	Price     string
 }
 
+// SubscriptionResponse is a response after subscribing to an event
 type SubscriptionResponse struct {
 	ChannelID    int    `json:"channelID"`
 	Pair         string `json:"pair"`
@@ -51,6 +53,7 @@ type SubscriptionResponse struct {
 // channelPairMap maps a channelid returned in the api to a specific pair
 type channelPairMap map[int]string
 
+// UnmarshalJSON overrides UnmarshalJSON due to Kraken's weird output
 func (s *TickerResponse) UnmarshalJSON(msg []byte) error {
 	// Hack for weird kraken response
 	var channel []int

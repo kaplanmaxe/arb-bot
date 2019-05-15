@@ -14,7 +14,7 @@ func TestStart(t *testing.T) {
 	quoteCh := make(chan broker.Quote)
 	errorCh := make(chan error, 1)
 	ctx := context.TODO()
-	client := kraken.NewClient(mock.NewMockConnector(), quoteCh, errorCh)
+	client := kraken.NewClient(mock.NewConnector(), quoteCh, errorCh)
 	client.Start(ctx)
 	for i := 0; i < len(client.Pairs)+1; i++ {
 		var channelID int

@@ -28,6 +28,7 @@ type API interface {
 	FormatSubscribeRequest() interface{}
 }
 
+// NewBroker returns a new broker interface
 func NewBroker(exchanges []API) Broker {
 	return &broker{
 		exchanges: exchanges,

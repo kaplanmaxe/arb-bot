@@ -15,7 +15,7 @@ func TestStart(t *testing.T) {
 	errorCh := make(chan error, 1)
 	ctx := context.TODO()
 
-	client := coinbase.NewClient(mock.NewMockConnector(), quoteCh, errorCh)
+	client := coinbase.NewClient(mock.NewConnector(), quoteCh, errorCh)
 	client.Start(ctx)
 
 	mockResponse := &coinbase.TickerResponse{

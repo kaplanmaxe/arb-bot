@@ -1,5 +1,6 @@
 package binance
 
+// TickerResponse is a response from the ws api with a ticker
 // {
 // 	"e": "24hrTicker",  // Event type
 // 	"E": 123456789,     // Event time
@@ -25,7 +26,6 @@ package binance
 // 	"L": 18150,         // Last trade Id
 // 	"n": 18151          // Total number of trades
 //   }
-
 type TickerResponse struct {
 	// We need this in order to properly set the price. Sometimes during deserialization
 	// Price will be set to `json:"A"` if we don't also deserialize AskQuantity

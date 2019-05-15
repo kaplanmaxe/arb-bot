@@ -94,7 +94,6 @@ func (c *Client) SendSubscribeRequest(req interface{}) (<-chan struct{}, error) 
 			}
 
 			if subs < len(c.Pairs) {
-				// log.Fatal(string(message))
 				c.channelPairMap[subStatusResponse.ChannelID] = subStatusResponse.Pair
 			} else {
 				close(doneCh)

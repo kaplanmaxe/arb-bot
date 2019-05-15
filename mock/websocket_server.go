@@ -15,6 +15,7 @@ type echoServer struct {
 	Done     chan struct{}
 }
 
+// ServeHTTP is the handler func to serve websocket traffic
 func (s *echoServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	var (
 		err error
@@ -46,6 +47,7 @@ func (s *echoServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// NewWebsocketServer returns a new websocket server
 func NewWebsocketServer() *websocket.Dialer {
 	return wstest.NewDialer(&echoServer{})
 }
