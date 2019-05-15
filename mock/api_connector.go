@@ -16,13 +16,15 @@ type Connector struct {
 	conn         *websocket.Conn
 	exchangeName string
 	URL          *url.URL
+	ignoreFunc   func(msg []byte) bool
 }
 
 // NewConnector returns a new mock connector
-func NewConnector() api.Connector {
+func NewConnector(ignoreFunc func(msg []byte) bool) api.Connector {
 	return &Connector{
 		exchangeName: "mockWebsocketServer",
 		URL:          &url.URL{Scheme: "ws", Host: "example.com", Path: "/ws"},
+		ignoreFunc:   ignoreFunc,
 	}
 }
 
@@ -36,7 +38,7 @@ func (m *Connector) Start(ctx context.Context) {
 
 // Connect connects to the web socket
 func (m *Connector) Connect(url *url.URL) error {
-	dialer := NewWebsocketServer()
+	dialer := NewWebsocketServer(m.ignoreFunc)
 	c, _, err := dialer.Dial(m.URL.String(), nil)
 	if err != nil {
 		return fmt.Errorf("Error connection to server: %s", err)

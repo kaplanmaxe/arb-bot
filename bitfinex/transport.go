@@ -62,8 +62,11 @@ func (c *Client) Start(ctx context.Context) error {
 		}
 
 		if key == len(c.Pairs)-1 {
-			<-doneCh
-			c.StartTickerListener(ctx)
+			go func() {
+				<-doneCh
+				c.StartTickerListener(ctx)
+			}()
+
 		}
 	}
 
@@ -115,6 +118,9 @@ Loop:
 			c.errorCh <- fmt.Errorf("Error unmarshalling from %s: %s", c.exchangeName, err)
 		}
 
+		// if subs == len(c.Pairs) {
+		// 	log.Fatal("ah")
+		// }
 		if subs < len(c.Pairs) {
 			c.channelPairMap[subStatusResponse.ChannelID] = subStatusResponse.Pair
 		} else {
@@ -157,9 +163,12 @@ func (c *Client) getPair(res *TickerResponse) {
 // StartTickerListener starts a new goroutine to listen for new ticker messages
 func (c *Client) StartTickerListener(ctx context.Context) {
 	go func() {
+		// var mtx sync.Mutex
+		// badTimes := 0
 	cLoop:
 		for {
 			message, err := c.API.ReadMessage()
+			// log.Fatal(string(message))
 			if err != nil {
 				c.errorCh <- fmt.Errorf("Error reading from %s: %s", c.exchangeName, err)
 				return
@@ -174,6 +183,7 @@ func (c *Client) StartTickerListener(ctx context.Context) {
 				break cLoop
 			default:
 				res, err := c.ParseTickerResponse(message)
+				// log.Fatal(res, err)
 				if err != nil {
 					c.errorCh <- err
 				} else if len(res) > 0 {

@@ -10,12 +10,15 @@ import (
 	"github.com/kaplanmaxe/helgart/mock"
 )
 
+func ignoreFunc(msg []byte) bool {
+	return false
+}
 func TestStart(t *testing.T) {
 	quoteCh := make(chan broker.Quote)
 	errorCh := make(chan error, 1)
 	ctx := context.TODO()
 
-	client := binance.NewClient(mock.NewConnector(), quoteCh, errorCh)
+	client := binance.NewClient(mock.NewConnector(ignoreFunc), quoteCh, errorCh)
 	client.Start(ctx)
 
 	mockResponse := []binance.TickerResponse{

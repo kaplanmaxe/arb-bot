@@ -11,8 +11,9 @@ import (
 var upgrader = websocket.Upgrader{}
 
 type echoServer struct {
-	upgrader websocket.Upgrader
-	Done     chan struct{}
+	upgrader   websocket.Upgrader
+	Done       chan struct{}
+	ignoreFunc func(msg []byte) bool
 }
 
 // ServeHTTP is the handler func to serve websocket traffic
@@ -40,14 +41,19 @@ func (s *echoServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			return
 		}
-		err = conn.WriteMessage(mt, message)
-		if err != nil {
-			log.Fatalf("Error writing message: %s", err)
+		if s.ignoreFunc(message) == false {
+			err = conn.WriteMessage(mt, message)
+			if err != nil {
+				log.Fatalf("Error writing message: %s", err)
+			}
 		}
+
 	}
 }
 
 // NewWebsocketServer returns a new websocket server
-func NewWebsocketServer() *websocket.Dialer {
-	return wstest.NewDialer(&echoServer{})
+func NewWebsocketServer(ignoreFunc func(msg []byte) bool) *websocket.Dialer {
+	return wstest.NewDialer(&echoServer{
+		ignoreFunc: ignoreFunc,
+	})
 }
