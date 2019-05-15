@@ -3,6 +3,7 @@ package kraken_test
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/kaplanmaxe/helgart/broker"
@@ -11,7 +12,11 @@ import (
 )
 
 func ignoreFunc(msg []byte) bool {
-	return false
+	if strings.Contains(string(msg), "{\"event\":") {
+		return true
+	} else {
+		return false
+	}
 }
 func TestStart(t *testing.T) {
 	quoteCh := make(chan broker.Quote)

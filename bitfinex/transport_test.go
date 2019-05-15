@@ -19,7 +19,6 @@ type mockSubscriptionResponse struct {
 
 func ignoreFunc(msg []byte) bool {
 	if strings.Contains(string(msg), `"symbol"`) {
-		// log.Fatal("skipping")
 		return true
 	} else {
 		return false

@@ -7,7 +7,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"strings"
 	"sync"
 
 	"github.com/kaplanmaxe/helgart/api"
@@ -83,10 +82,6 @@ func (c *Client) SendSubscribeRequest(req interface{}) (<-chan struct{}, error) 
 			}
 
 			var subStatusResponse SubscriptionResponse
-			// TODO: dirty, dirty hack for testability. Need interfaces
-			if strings.Contains(string(message), "{\"event\":") {
-				continue
-			}
 
 			err = json.Unmarshal(message, &subStatusResponse)
 			if err != nil {
