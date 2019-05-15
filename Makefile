@@ -8,12 +8,18 @@ build:
 run: build
 	@(./bin/helgart)
 
+run-race: build
+	go run -race main.go
+
 lint:
 	@(golint --set_exit_status ${FILES})
 
 unit:
 	@(go test -cover ./...)
 
-test: lint unit
+unit-race:
+	@(go test -race -cover ./...)
 
-.PHONY: build run lint unit test
+test: lint unit unit-race
+
+.PHONY: build run run-race lint unit unit-race test
