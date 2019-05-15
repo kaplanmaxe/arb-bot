@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 
 	"github.com/kaplanmaxe/helgart/api"
@@ -16,20 +17,20 @@ import (
 
 // Client represents an API client
 type Client struct {
-	pairs          []string
+	Pairs          []string
 	quoteCh        chan<- broker.Quote
 	errorCh        chan<- error
-	api            api.Connector
+	API            api.Connector
 	channelPairMap channelPairMap
 	exchangeName   string
 }
 
 // NewClient returns a new instance of the API
-func NewClient(api api.Connector, quoteCh chan<- broker.Quote, errorCh chan<- error) exchange.API {
+func NewClient(api api.Connector, quoteCh chan<- broker.Quote, errorCh chan<- error) *Client {
 	return &Client{
 		quoteCh:        quoteCh,
 		errorCh:        errorCh,
-		api:            api,
+		API:            api,
 		channelPairMap: make(channelPairMap),
 		exchangeName:   exchange.KRAKEN,
 	}
@@ -41,52 +42,62 @@ func (c *Client) Start(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	c.api.Connect(c.GetURL())
+	c.API.Connect(c.GetURL())
 	if err != nil {
 		return err
 	}
-	var wg sync.WaitGroup
-	wg.Add(1)
-	err = c.SendSubscribeRequest(&wg, c.FormatSubscribeRequest())
+
+	doneCh, err := c.SendSubscribeRequest(c.FormatSubscribeRequest())
 	if err != nil {
 		return err
 	}
-	wg.Wait()
-	c.StartTickerListener(ctx)
+	go func() {
+		<-doneCh
+		c.StartTickerListener(ctx)
+	}()
+
 	return nil
 }
 
 // SendSubscribeRequest overrides the interface method and sends a subscription request and listens
 // for a response
-func (c *Client) SendSubscribeRequest(wg *sync.WaitGroup, req interface{}) error {
+func (c *Client) SendSubscribeRequest(req interface{}) (<-chan struct{}, error) {
+	doneCh := make(chan struct{})
 	payload, err := json.Marshal(req)
 	if err != nil {
-		return fmt.Errorf("Error marshalling %s subscribe request: %s", c.exchangeName, err)
+		return doneCh, fmt.Errorf("Error marshalling %s subscribe request: %s", c.exchangeName, err)
 	}
-	err = c.api.WriteMessage(payload)
+	err = c.API.WriteMessage(payload)
 	if err != nil {
-		return fmt.Errorf("Error sending subscribe request for %s: %s", c.exchangeName, err)
+		return doneCh, fmt.Errorf("Error sending subscribe request for %s: %s", c.exchangeName, err)
 	}
 	go func() {
 		var mtx sync.Mutex
 		subs := 0
 	Loop:
 		for {
-			message, err := c.api.ReadMessage()
+			message, err := c.API.ReadMessage()
 			if err != nil {
 				c.errorCh <- fmt.Errorf("Error reading message from %s: %s", c.exchangeName, err)
 				return
 			}
 
-			var subStatusResponse subscriptionResponse
+			var subStatusResponse SubscriptionResponse
+			// TODO: dirty, dirty hack for testability. Need interfaces
+			if strings.Contains(string(message), "{\"event\":") {
+				continue
+			}
+
 			err = json.Unmarshal(message, &subStatusResponse)
 			if err != nil {
 				c.errorCh <- fmt.Errorf("Error unmarshalling from %s: %s", c.exchangeName, err)
 			}
-			if subs < len(c.pairs) {
+
+			if subs < len(c.Pairs) {
+				// log.Fatal(string(message))
 				c.channelPairMap[subStatusResponse.ChannelID] = subStatusResponse.Pair
 			} else {
-				wg.Done()
+				close(doneCh)
 				break Loop
 			}
 			mtx.Lock()
@@ -95,14 +106,14 @@ func (c *Client) SendSubscribeRequest(wg *sync.WaitGroup, req interface{}) error
 		}
 		return
 	}()
-	return nil
+	return doneCh, nil
 }
 
 // FormatSubscribeRequest creates the type for a subscribe request
 func (c *Client) FormatSubscribeRequest() interface{} {
-	return &subscribeRequest{
+	return &SubscribeRequest{
 		Event: "subscribe",
-		Pair:  c.pairs,
+		Pair:  c.Pairs,
 		Subscription: struct {
 			Name string `json:"name"`
 		}{Name: TICKER},
@@ -114,7 +125,7 @@ func (c *Client) ParseTickerResponse(msg []byte) ([]broker.Quote, error) {
 	var err error
 	var quotes []broker.Quote
 
-	var res tickerResponse
+	var res TickerResponse
 	err = json.Unmarshal(msg, &res)
 	if err != nil {
 		return []broker.Quote{}, fmt.Errorf("Error unmarshalling from %s: %s", c.exchangeName, err)
@@ -126,7 +137,7 @@ func (c *Client) ParseTickerResponse(msg []byte) ([]broker.Quote, error) {
 	return quotes, nil
 }
 
-func (c *Client) getPair(res *tickerResponse) {
+func (c *Client) getPair(res *TickerResponse) {
 	res.Pair = c.channelPairMap[res.ChannelID]
 }
 
@@ -135,7 +146,7 @@ func (c *Client) StartTickerListener(ctx context.Context) {
 	go func() {
 	cLoop:
 		for {
-			message, err := c.api.ReadMessage()
+			message, err := c.API.ReadMessage()
 			if err != nil {
 				c.errorCh <- fmt.Errorf("Error reading from %s: %s", c.exchangeName, err)
 				return
@@ -143,7 +154,7 @@ func (c *Client) StartTickerListener(ctx context.Context) {
 
 			select {
 			case <-ctx.Done():
-				err := c.api.Close()
+				err := c.API.Close()
 				if err != nil {
 					c.errorCh <- fmt.Errorf("Error closing %s: %s", c.exchangeName, err)
 				}
@@ -186,6 +197,6 @@ func (c *Client) GetPairs() error {
 	for key := range pairsResponse.Result {
 		pairs = append(pairs, pairsResponse.Result[key].Pair)
 	}
-	c.pairs = pairs
+	c.Pairs = pairs
 	return nil
 }

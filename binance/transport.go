@@ -32,6 +32,7 @@ func NewClient(api api.Connector, quoteCh chan<- broker.Quote, errorCh chan<- er
 // Start starts the api connection and listens for new ticker messages
 func (c *Client) Start(ctx context.Context) error {
 	err := c.API.Connect(c.GetURL())
+
 	if err != nil {
 		return err
 	}

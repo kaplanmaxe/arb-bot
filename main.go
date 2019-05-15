@@ -8,13 +8,12 @@ import (
 	"os/signal"
 	"time"
 
-	"github.com/kaplanmaxe/helgart/binance"
-	"github.com/kaplanmaxe/helgart/kraken"
-
 	"github.com/kaplanmaxe/helgart/api"
+	"github.com/kaplanmaxe/helgart/binance"
 	"github.com/kaplanmaxe/helgart/broker"
 	"github.com/kaplanmaxe/helgart/coinbase"
 	"github.com/kaplanmaxe/helgart/exchange"
+	"github.com/kaplanmaxe/helgart/kraken"
 )
 
 func main() {
@@ -34,6 +33,7 @@ func main() {
 	})
 
 	err := broker.Start(ctx)
+
 	if err != nil {
 		log.Fatal(err)
 	}

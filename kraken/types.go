@@ -25,7 +25,7 @@ const (
 // 	  "name": "ticker"
 // 	}
 //   }
-type subscribeRequest struct {
+type SubscribeRequest struct {
 	Event        string   `json:"event"`
 	Pair         []string `json:"pair"`
 	Subscription struct {
@@ -33,13 +33,13 @@ type subscribeRequest struct {
 	} `json:"subscription"`
 }
 
-type tickerResponse struct {
+type TickerResponse struct {
 	ChannelID int
 	Pair      string
 	Price     string
 }
 
-type subscriptionResponse struct {
+type SubscriptionResponse struct {
 	ChannelID    int    `json:"channelID"`
 	Pair         string `json:"pair"`
 	Status       string `json:"status"`
@@ -51,7 +51,7 @@ type subscriptionResponse struct {
 // channelPairMap maps a channelid returned in the api to a specific pair
 type channelPairMap map[int]string
 
-func (s *tickerResponse) UnmarshalJSON(msg []byte) error {
+func (s *TickerResponse) UnmarshalJSON(msg []byte) error {
 	// Hack for weird kraken response
 	var channel []int
 	json.Unmarshal(msg, &channel)
