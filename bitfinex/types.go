@@ -34,7 +34,6 @@ func (s *TickerResponse) UnmarshalJSON(msg []byte) error {
 	var channel []interface{}
 	json.Unmarshal(msg, &channel)
 	var tmp [][]interface{}
-	// log.Fatal("now", tmp)
 	json.Unmarshal(msg, &tmp)
 	switch channel[1].(type) {
 	case string:

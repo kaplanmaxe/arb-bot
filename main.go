@@ -9,9 +9,12 @@ import (
 	"time"
 
 	"github.com/kaplanmaxe/helgart/api"
+	"github.com/kaplanmaxe/helgart/binance"
 	"github.com/kaplanmaxe/helgart/bitfinex"
 	"github.com/kaplanmaxe/helgart/broker"
+	"github.com/kaplanmaxe/helgart/coinbase"
 	"github.com/kaplanmaxe/helgart/exchange"
+	"github.com/kaplanmaxe/helgart/kraken"
 )
 
 func main() {
@@ -25,9 +28,9 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	broker := exchange.NewBroker([]exchange.API{
-		// kraken.NewClient(api.NewSource(exchange.KRAKEN), quoteCh, errorCh),
-		// coinbase.NewClient(api.NewSource(exchange.COINBASE), quoteCh, errorCh),
-		// binance.NewClient(api.NewSource(exchange.BINANCE), quoteCh, errorCh),
+		kraken.NewClient(api.NewSource(exchange.KRAKEN), quoteCh, errorCh),
+		coinbase.NewClient(api.NewSource(exchange.COINBASE), quoteCh, errorCh),
+		binance.NewClient(api.NewSource(exchange.BINANCE), quoteCh, errorCh),
 		bitfinex.NewClient(api.NewSource(exchange.BITFINEX), quoteCh, errorCh),
 	})
 
