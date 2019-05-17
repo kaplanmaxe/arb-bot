@@ -2,8 +2,6 @@ package exchange
 
 import (
 	"context"
-
-	"github.com/kaplanmaxe/helgart/api"
 )
 
 const (
@@ -18,7 +16,7 @@ const (
 )
 
 // NewBroker returns a new broker interface
-func NewBroker(exchanges []api.Exchange) Broker {
+func NewBroker(exchanges []Exchange) Broker {
 	return &broker{
 		exchanges: exchanges,
 	}
@@ -31,7 +29,7 @@ type Broker interface {
 
 // Group is a struct representing a group of exchanges
 type broker struct {
-	exchanges []api.Exchange
+	exchanges []Exchange
 }
 
 // Start starts a new exchange engine

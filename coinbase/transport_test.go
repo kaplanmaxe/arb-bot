@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/kaplanmaxe/helgart/broker"
 	"github.com/kaplanmaxe/helgart/coinbase"
+	"github.com/kaplanmaxe/helgart/exchange"
 	"github.com/kaplanmaxe/helgart/mock"
 )
 
@@ -14,7 +14,7 @@ func ignoreFunc(msg []byte) bool {
 	return false
 }
 func TestStart(t *testing.T) {
-	quoteCh := make(chan broker.Quote)
+	quoteCh := make(chan exchange.Quote)
 	errorCh := make(chan error, 1)
 	ctx := context.TODO()
 

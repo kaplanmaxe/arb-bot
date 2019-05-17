@@ -1,4 +1,4 @@
-package broker
+package exchange
 
 // Quote represents a quote from an exchange
 type Quote struct {

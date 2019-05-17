@@ -11,14 +11,13 @@ import (
 	"sync"
 
 	"github.com/kaplanmaxe/helgart/api"
-	"github.com/kaplanmaxe/helgart/broker"
 	"github.com/kaplanmaxe/helgart/exchange"
 )
 
 // Client represents an API client
 type Client struct {
 	Pairs          []string
-	quoteCh        chan<- broker.Quote
+	quoteCh        chan<- exchange.Quote
 	errorCh        chan<- error
 	API            api.WebSocketHelper
 	channelPairMap exchange.ChannelPairMap
@@ -26,7 +25,7 @@ type Client struct {
 }
 
 // NewClient returns a new instance of the API
-func NewClient(api api.WebSocketHelper, quoteCh chan<- broker.Quote, errorCh chan<- error) *Client {
+func NewClient(api api.WebSocketHelper, quoteCh chan<- exchange.Quote, errorCh chan<- error) *Client {
 	return &Client{
 		quoteCh:        quoteCh,
 		errorCh:        errorCh,
@@ -136,19 +135,19 @@ func (c *Client) FormatSubscribeRequest() interface{} {
 	return nil
 }
 
-// ParseTickerResponse parses the ticker response and returns a new instance of a broker.Quote
-func (c *Client) ParseTickerResponse(msg []byte) ([]broker.Quote, error) {
+// ParseTickerResponse parses the ticker response and returns a new instance of a exchange.Quote
+func (c *Client) ParseTickerResponse(msg []byte) ([]exchange.Quote, error) {
 	var err error
-	var quotes []broker.Quote
+	var quotes []exchange.Quote
 
 	var res TickerResponse
 	err = json.Unmarshal(msg, &res)
 	if err != nil {
-		return []broker.Quote{}, fmt.Errorf("Error unmarshalling from %s: %s", c.exchangeName, err)
+		return []exchange.Quote{}, fmt.Errorf("Error unmarshalling from %s: %s", c.exchangeName, err)
 	}
 	c.getPair(&res)
 	if res.Pair != "" {
-		quotes = append(quotes, *broker.NewExchangeQuote(c.exchangeName, res.Pair, res.Price))
+		quotes = append(quotes, *exchange.NewExchangeQuote(c.exchangeName, res.Pair, res.Price))
 	}
 	return quotes, nil
 }

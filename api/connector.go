@@ -8,16 +8,7 @@ import (
 	"net/url"
 
 	"github.com/gorilla/websocket"
-	"github.com/kaplanmaxe/helgart/broker"
 )
-
-// Exchange represents an exchange and each exchange should implement this interface
-type Exchange interface {
-	Start(context.Context) error
-	StartTickerListener(context.Context)
-	GetURL() *url.URL
-	ParseTickerResponse(msg []byte) ([]broker.Quote, error)
-}
 
 // WebSocketHelper contains methods for common functions to send over a websocket api
 type WebSocketHelper interface {
