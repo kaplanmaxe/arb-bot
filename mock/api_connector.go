@@ -20,7 +20,7 @@ type Connector struct {
 }
 
 // NewConnector returns a new mock connector
-func NewConnector(ignoreFunc func(msg []byte) bool) api.Connector {
+func NewConnector(ignoreFunc func(msg []byte) bool) api.WebSocketHelper {
 	return &Connector{
 		exchangeName: "mockWebsocketServer",
 		URL:          &url.URL{Scheme: "ws", Host: "example.com", Path: "/ws"},
@@ -29,11 +29,12 @@ func NewConnector(ignoreFunc func(msg []byte) bool) api.Connector {
 }
 
 // Start starts the client
-func (m *Connector) Start(ctx context.Context) {
+func (m *Connector) Start(ctx context.Context) error {
 	err := m.Connect(m.URL)
 	if err != nil {
-		log.Fatalf("Error connecting: %s", err)
+		return err
 	}
+	return nil
 }
 
 // Connect connects to the web socket

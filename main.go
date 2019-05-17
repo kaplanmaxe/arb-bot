@@ -27,11 +27,11 @@ func main() {
 	signal.Notify(interrupt, os.Interrupt)
 	ctx, cancel := context.WithCancel(context.Background())
 
-	broker := exchange.NewBroker([]exchange.API{
-		kraken.NewClient(api.NewSource(exchange.KRAKEN), quoteCh, errorCh),
-		coinbase.NewClient(api.NewSource(exchange.COINBASE), quoteCh, errorCh),
-		binance.NewClient(api.NewSource(exchange.BINANCE), quoteCh, errorCh),
-		bitfinex.NewClient(api.NewSource(exchange.BITFINEX), quoteCh, errorCh),
+	broker := exchange.NewBroker([]api.Exchange{
+		kraken.NewClient(api.NewWebSocketHelper(exchange.KRAKEN), quoteCh, errorCh),
+		coinbase.NewClient(api.NewWebSocketHelper(exchange.COINBASE), quoteCh, errorCh),
+		binance.NewClient(api.NewWebSocketHelper(exchange.BINANCE), quoteCh, errorCh),
+		bitfinex.NewClient(api.NewWebSocketHelper(exchange.BITFINEX), quoteCh, errorCh),
 	})
 
 	err := broker.Start(ctx)
@@ -39,6 +39,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	// coinbase := newapi.NewExchange(coinbase.NewClient(ctx, quoteCh, errorCh)) // test
 
 	go func() {
 		for {

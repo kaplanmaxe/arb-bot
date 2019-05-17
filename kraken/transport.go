@@ -19,13 +19,13 @@ type Client struct {
 	Pairs          []string
 	quoteCh        chan<- broker.Quote
 	errorCh        chan<- error
-	API            api.Connector
+	API            api.WebSocketHelper
 	channelPairMap exchange.ChannelPairMap
 	exchangeName   string
 }
 
 // NewClient returns a new instance of the API
-func NewClient(api api.Connector, quoteCh chan<- broker.Quote, errorCh chan<- error) *Client {
+func NewClient(api api.WebSocketHelper, quoteCh chan<- broker.Quote, errorCh chan<- error) *Client {
 	return &Client{
 		quoteCh:        quoteCh,
 		errorCh:        errorCh,

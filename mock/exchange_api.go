@@ -9,18 +9,16 @@ import (
 
 	"github.com/kaplanmaxe/helgart/api"
 	"github.com/kaplanmaxe/helgart/broker"
-	"github.com/kaplanmaxe/helgart/exchange"
 )
 
 type mockClient struct {
 	quoteCh      chan<- broker.Quote
 	errorCh      chan<- error
-	Client       api.Connector
+	Client       api.WebSocketHelper
 	ExchangeName string
-	exchange.API
 }
 
-func newMockClient(a api.Connector, quoteCh chan<- broker.Quote, errorCh chan<- error) *mockClient {
+func newMockClient(a api.WebSocketHelper, quoteCh chan<- broker.Quote, errorCh chan<- error) *mockClient {
 	return &mockClient{
 		quoteCh:      quoteCh,
 		errorCh:      errorCh,
@@ -30,7 +28,7 @@ func newMockClient(a api.Connector, quoteCh chan<- broker.Quote, errorCh chan<- 
 }
 
 // Start starts the api connection and listens for new ticker messages
-func (m *mockClient) Start(ctx context.Context) {
+func (m *mockClient) Start(ctx context.Context) error {
 	url := m.GetURL()
 	url.Scheme = "wss"
 	err := m.Client.Connect(url)
@@ -38,6 +36,7 @@ func (m *mockClient) Start(ctx context.Context) {
 		log.Fatal(err)
 	}
 	go m.StartTickerListener(ctx)
+	return nil
 }
 
 func (m *mockClient) StartTickerListener(ctx context.Context) {

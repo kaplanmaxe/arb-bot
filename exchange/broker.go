@@ -2,10 +2,9 @@ package exchange
 
 import (
 	"context"
-	"net/url"
 
 	// TODO: fix
-	b "github.com/kaplanmaxe/helgart/broker"
+	"github.com/kaplanmaxe/helgart/api"
 )
 
 const (
@@ -21,15 +20,15 @@ const (
 
 // API is an interface each exchange client should satisfy
 // TODO: remove
-type API interface {
-	Start(context.Context) error
-	GetURL() *url.URL
-	ParseTickerResponse([]byte) ([]b.Quote, error)
-	FormatSubscribeRequest() interface{}
-}
+// type API interface {
+// 	Start(context.Context) error
+// 	GetURL() *url.URL
+// 	ParseTickerResponse([]byte) ([]b.Quote, error)
+// 	FormatSubscribeRequest() interface{}
+// }
 
 // NewBroker returns a new broker interface
-func NewBroker(exchanges []API) Broker {
+func NewBroker(exchanges []api.Exchange) Broker {
 	return &broker{
 		exchanges: exchanges,
 	}
@@ -42,7 +41,7 @@ type Broker interface {
 
 // Group is a struct representing a group of exchanges
 type broker struct {
-	exchanges []API
+	exchanges []api.Exchange
 }
 
 // Start starts a new exchange engine

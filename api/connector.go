@@ -8,17 +8,24 @@ import (
 	"net/url"
 
 	"github.com/gorilla/websocket"
+	"github.com/kaplanmaxe/helgart/broker"
 )
 
-// Connector is an interface containing methods for exchanegs
-type Connector interface {
-	Start(context.Context)
+// Exchange represents an exchange and each exchange should implement this interface
+type Exchange interface {
+	Start(context.Context) error
+	StartTickerListener(context.Context)
+	GetURL() *url.URL
+	ParseTickerResponse(msg []byte) ([]broker.Quote, error)
+}
+
+// WebSocketHelper contains methods for common functions to send over a websocket api
+type WebSocketHelper interface {
 	Connect(*url.URL) error
-	ReadMessage() ([]byte, error)
 	SendSubscribeRequest(interface{}) error
 	SendSubscribeRequestWithResponse(context.Context, interface{}) ([]byte, error)
 	WriteMessage([]byte) error
-	StartTickerListener(context.Context)
+	ReadMessage() ([]byte, error)
 	Close() error
 }
 
@@ -29,15 +36,13 @@ type Source struct {
 	exchangeName string
 }
 
-// NewSource returns a new instance of source
-func NewSource(exchangeName string) Connector {
+// NewWebSocketHelper returns an interface of methods containing common functions
+// to send over a websocket API
+func NewWebSocketHelper(exchangeName string) WebSocketHelper {
 	return &Source{
 		exchangeName: exchangeName,
 	}
 }
-
-// Start starts the exchange api and should be overridden by gateway
-func (s *Source) Start(ctx context.Context) {}
 
 // Connect connects to the websocket api and stores the connection
 func (s *Source) Connect(url *url.URL) error {
@@ -88,11 +93,6 @@ func (s *Source) WriteMessage(msg []byte) error {
 		return err
 	}
 	return nil
-}
-
-// StartTickerListener starts a listener in a new goroutine for any new quotes
-// This should be overridden by each gateway
-func (s *Source) StartTickerListener(ctx context.Context) {
 }
 
 // Close closes the connection
