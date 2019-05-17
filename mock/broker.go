@@ -4,12 +4,13 @@ import (
 	"github.com/kaplanmaxe/helgart/exchange"
 )
 
+// MakeMockProductMap makes a mock product map
 func MakeMockProductMap() exchange.ProductMap {
 	productMap := make(exchange.ProductMap)
 	exchanges := []string{exchange.COINBASE, exchange.KRAKEN, exchange.BINANCE, exchange.BITFINEX}
 	for _, ex := range exchanges {
 		if _, ok := productMap[ex]; !ok {
-			productMap[ex] = make(exchange.ExchangeProductMap)
+			productMap[ex] = make(exchange.ExProductMap)
 		}
 		switch ex {
 		case exchange.KRAKEN:

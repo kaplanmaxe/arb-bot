@@ -17,6 +17,8 @@ const (
 	BITFINEX = "bitfinex"
 )
 
+// ProductStorage is an interface to fetch products from some persistent storage (mysql, etc)
+// This is intended to normalize products (pairs) where some exchanges might list IOTA-USD as IOT-USD
 type ProductStorage interface {
 	Connect() error
 	FetchProducts() ([]Product, error)
@@ -31,6 +33,8 @@ func NewBroker(exchanges []Exchange, db ProductStorage) *Broker {
 	}
 }
 
+// Product is a struct representing all the format of each product.
+// Ex_ stands for exchange, He_ stands for helgart
 type Product struct {
 	Exchange string `json:"exchange"`
 	ExPair   string `json:"ex_pair"`
@@ -41,13 +45,13 @@ type Product struct {
 	HeQuote  string `json:"he_quote"`
 }
 
-// ExchangeProductMap is a map of pairs to product details
-type ExchangeProductMap map[string]Product
+// ExProductMap is a map of pairs to product details
+type ExProductMap map[string]Product
 
 // ProductMap is a map that normalizes all products (pairs)
 // First key is exchange, second key is pair
 // TODO: make more descriptive
-type ProductMap map[string]ExchangeProductMap
+type ProductMap map[string]ExProductMap
 
 // Broker is an interface to start a new instance of a broker
 // type Broker interface {

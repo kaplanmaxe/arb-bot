@@ -21,7 +21,7 @@ type Client struct {
 	API            api.WebSocketHelper
 	channelPairMap exchange.ChannelPairMap
 	exchangeName   string
-	productMap     exchange.ExchangeProductMap
+	productMap     exchange.ExProductMap
 }
 
 // NewClient returns a new instance of the API

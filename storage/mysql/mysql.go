@@ -8,6 +8,7 @@ import (
 	"github.com/kaplanmaxe/helgart/exchange"
 )
 
+// Config represents a mysql config
 type Config struct {
 	Username string `yaml:"HELGART_DB_USERNAME"`
 	Password string `yaml:"HELGART_DB_PASSWORD"`
@@ -16,17 +17,20 @@ type Config struct {
 	Host     string `yaml:"HELGART_DB_HOST"`
 }
 
+// Client represents a mysql client
 type Client struct {
 	DB  *sql.DB
 	cfg *Config
 }
 
+// NewClient returns a new mysql client
 func NewClient(cfg *Config) exchange.ProductStorage {
 	return &Client{
 		cfg: cfg,
 	}
 }
 
+// Connect opens a connection to the db
 func (c *Client) Connect() error {
 	db, err := sql.Open("mysql", fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", c.cfg.Username, c.cfg.Password, c.cfg.Host, c.cfg.Port, c.cfg.DBName))
 
@@ -41,6 +45,7 @@ func (c *Client) Connect() error {
 	return nil
 }
 
+// FetchProducts fetch products from the db so we can normalize pair names
 func (c *Client) FetchProducts() ([]exchange.Product, error) {
 	var products []exchange.Product
 	results, err := c.DB.Query("SELECT exchange, ex_pair, he_pair, ex_base, ex_quote, he_base, he_quote FROM products")

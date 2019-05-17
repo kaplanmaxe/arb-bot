@@ -16,7 +16,7 @@ type Client struct {
 	errorCh      chan<- error
 	API          api.WebSocketHelper
 	exchangeName string
-	productMap   exchange.ExchangeProductMap
+	productMap   exchange.ExProductMap
 }
 
 // NewClient returns a new instance of the API
