@@ -8,7 +8,7 @@ import (
 	"net/url"
 
 	"github.com/gorilla/websocket"
-	"github.com/kaplanmaxe/helgart/api"
+	"github.com/kaplanmaxe/helgart/broker/api"
 )
 
 // Connector is a mock connector for testing

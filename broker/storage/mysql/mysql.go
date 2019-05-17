@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	_ "github.com/go-sql-driver/mysql" // mysql driver
-	"github.com/kaplanmaxe/helgart/exchange"
+	"github.com/kaplanmaxe/helgart/broker/exchange"
 )
 
 // Config represents a mysql config

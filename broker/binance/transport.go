@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"net/url"
 
-	"github.com/kaplanmaxe/helgart/api"
-	"github.com/kaplanmaxe/helgart/exchange"
+	"github.com/kaplanmaxe/helgart/broker/api"
+	"github.com/kaplanmaxe/helgart/broker/exchange"
 )
 
 // Client represents an API client

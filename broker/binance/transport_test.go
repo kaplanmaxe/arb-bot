@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/kaplanmaxe/helgart/binance"
-	"github.com/kaplanmaxe/helgart/exchange"
-	"github.com/kaplanmaxe/helgart/mock"
+	"github.com/kaplanmaxe/helgart/broker/binance"
+	"github.com/kaplanmaxe/helgart/broker/exchange"
+	"github.com/kaplanmaxe/helgart/broker/mock"
 )
 
 func ignoreFunc(msg []byte) bool {

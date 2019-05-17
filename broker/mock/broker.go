@@ -1,7 +1,7 @@
 package mock
 
 import (
-	"github.com/kaplanmaxe/helgart/exchange"
+	"github.com/kaplanmaxe/helgart/broker/exchange"
 )
 
 // MakeMockProductMap makes a mock product map

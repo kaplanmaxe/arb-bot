@@ -10,13 +10,13 @@ import (
 	"time"
 
 	"github.com/go-yaml/yaml"
-	"github.com/kaplanmaxe/helgart/api"
-	"github.com/kaplanmaxe/helgart/binance"
-	"github.com/kaplanmaxe/helgart/bitfinex"
-	"github.com/kaplanmaxe/helgart/coinbase"
-	"github.com/kaplanmaxe/helgart/exchange"
-	"github.com/kaplanmaxe/helgart/kraken"
-	"github.com/kaplanmaxe/helgart/storage/mysql"
+	"github.com/kaplanmaxe/helgart/broker/api"
+	"github.com/kaplanmaxe/helgart/broker/binance"
+	"github.com/kaplanmaxe/helgart/broker/bitfinex"
+	"github.com/kaplanmaxe/helgart/broker/coinbase"
+	"github.com/kaplanmaxe/helgart/broker/exchange"
+	"github.com/kaplanmaxe/helgart/broker/kraken"
+	"github.com/kaplanmaxe/helgart/broker/storage/mysql"
 )
 
 type db struct {

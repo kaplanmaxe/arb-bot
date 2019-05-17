@@ -1,4 +1,4 @@
-package bitfinex_test
+package kraken_test
 
 import (
 	"context"
@@ -6,44 +6,35 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/kaplanmaxe/helgart/bitfinex"
-	"github.com/kaplanmaxe/helgart/exchange"
-	"github.com/kaplanmaxe/helgart/mock"
+	"github.com/kaplanmaxe/helgart/broker/exchange"
+	"github.com/kaplanmaxe/helgart/broker/kraken"
+	"github.com/kaplanmaxe/helgart/broker/mock"
 )
 
-type mockSubscriptionResponse struct {
-	ChannelID int    `json:"chanId"`
-	Pair      string `json:"pair"`
-	OmitMock  bool   `json:"omitmock"`
-}
-
 func ignoreFunc(msg []byte) bool {
-	if strings.Contains(string(msg), `"symbol"`) {
+	if strings.Contains(string(msg), "{\"event\":") {
 		return true
 	} else {
 		return false
 	}
 }
-
 func TestStart(t *testing.T) {
 	quoteCh := make(chan exchange.Quote)
 	errorCh := make(chan error, 1)
 	ctx := context.TODO()
-	client := bitfinex.NewClient(mock.NewConnector(ignoreFunc), quoteCh, errorCh)
+	client := kraken.NewClient(mock.NewConnector(ignoreFunc), quoteCh, errorCh)
 	productMap := mock.MakeMockProductMap()
 	client.Start(ctx, productMap)
 	for i := 0; i < len(client.Pairs)+1; i++ {
 		var channelID int
 		if i == 0 {
-			channelID = 368172
-
+			channelID = 392
 		} else {
 			channelID = i
 		}
-		subscribeResponse := &mockSubscriptionResponse{
+		subscribeResponse := &kraken.SubscriptionResponse{
 			ChannelID: channelID,
-			Pair:      "MOCKUSD",
-			OmitMock:  true,
+			Pair:      "MOCK/USD",
 		}
 		msg, err := json.Marshal(subscribeResponse)
 		if err != nil {
@@ -54,12 +45,11 @@ func TestStart(t *testing.T) {
 			t.Fatal(err)
 		}
 	}
-	mockResponse := json.RawMessage("[368172,[8114.8,67.33192073,8114.9,3.3117539600000003,314.9,0.0404,8114.9,18884.37269102,8199.9,7731]]")
+	mockResponse := json.RawMessage("[392,{\"a\":[\"0.43088000\",1200,\"1200.00000000\"],\"b\":[\"0.42950000\",28067,\"28067.80000000\"],\"c\":[\"0.42950000\",\"2000.00000000\"],\"v\":[\"15365184.37786758\",\"116236572.40419129\"],\"p\":[\"0.42806190\",\"0.39588510\"],\"t\":[4403,38241],\"l\":[\"0.40690000\",\"0.34375000\"],\"h\":[\"0.44800000\",\"0.44800000\"],\"o\":[\"0.40820000\",\"0.35385000\"]}]")
 	msg, err := json.Marshal(&mockResponse)
 	if err != nil {
 		t.Fatalf("Error marshalling json: %s", err)
 	}
-
 	err = client.API.WriteMessage(msg)
 	if err != nil {
 		t.Fatalf("Error writing message: %s", err)
@@ -68,7 +58,7 @@ listener:
 	for {
 		select {
 		case quote := <-quoteCh:
-			if quote.Price != "8114.900000" {
+			if quote.Price != "0.43088000" {
 				t.Fatalf("Expecting response %#v but got %#v", mockResponse, quote)
 			}
 			break listener
