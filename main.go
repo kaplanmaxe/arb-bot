@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-yaml/yaml"
 	"github.com/kaplanmaxe/helgart/api"
+	"github.com/kaplanmaxe/helgart/binance"
 	"github.com/kaplanmaxe/helgart/coinbase"
 	"github.com/kaplanmaxe/helgart/exchange"
 	"github.com/kaplanmaxe/helgart/kraken"
@@ -74,7 +75,7 @@ func main() {
 	broker := exchange.NewBroker([]exchange.Exchange{
 		kraken.NewClient(api.NewWebSocketHelper(exchange.KRAKEN), quoteCh, errorCh),
 		coinbase.NewClient(api.NewWebSocketHelper(exchange.COINBASE), quoteCh, errorCh),
-		// binance.NewClient(api.NewWebSocketHelper(exchange.BINANCE), quoteCh, errorCh),
+		binance.NewClient(api.NewWebSocketHelper(exchange.BINANCE), quoteCh, errorCh),
 		// bitfinex.NewClient(api.NewWebSocketHelper(exchange.BITFINEX), quoteCh, errorCh),
 	}, db)
 	err = broker.Start(ctx)

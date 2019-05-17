@@ -19,12 +19,13 @@ func TestStart(t *testing.T) {
 	ctx := context.TODO()
 
 	client := binance.NewClient(mock.NewConnector(ignoreFunc), quoteCh, errorCh)
-	client.Start(ctx)
+	productMap := mock.MakeMockProductMap()
+	client.Start(ctx, productMap)
 
 	mockResponse := []binance.TickerResponse{
 		binance.TickerResponse{
 			AskQuantity: "123",
-			Pair:        "BTCUSD",
+			Pair:        "MOCKUSD",
 			Price:       "1000000.00",
 		},
 	}
@@ -40,7 +41,7 @@ listener:
 	for {
 		select {
 		case quote := <-quoteCh:
-			if mockResponse[0].Pair != quote.Pair || mockResponse[0].Price != quote.Price {
+			if mockResponse[0].Pair != quote.ExPair || mockResponse[0].Price != quote.Price {
 				t.Fatalf("Expecting response %#v but got %#v", mockResponse, quote)
 			}
 			break listener

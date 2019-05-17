@@ -7,7 +7,6 @@ import (
 	"net/url"
 
 	"github.com/kaplanmaxe/helgart/api"
-	// "github.com/kaplanmaxe/helgart/broker"
 	"github.com/kaplanmaxe/helgart/exchange"
 )
 
@@ -17,6 +16,7 @@ type Client struct {
 	errorCh      chan<- error
 	API          api.WebSocketHelper
 	exchangeName string
+	productMap   exchange.ExchangeProductMap
 }
 
 // NewClient returns a new instance of the API
@@ -30,7 +30,8 @@ func NewClient(api api.WebSocketHelper, quoteCh chan<- exchange.Quote, errorCh c
 }
 
 // Start starts the api connection and listens for new ticker messages
-func (c *Client) Start(ctx context.Context) error {
+func (c *Client) Start(ctx context.Context, productMap exchange.ProductMap) error {
+	c.productMap = productMap[c.exchangeName]
 	err := c.API.Connect(c.GetURL())
 
 	if err != nil {
@@ -64,7 +65,9 @@ func (c *Client) StartTickerListener(ctx context.Context) {
 					c.errorCh <- err
 				} else if len(res) > 0 {
 					for _, val := range res {
-						c.quoteCh <- val
+						if val.HePair != "" {
+							c.quoteCh <- val
+						}
 					}
 				}
 			}
@@ -84,8 +87,19 @@ func (c *Client) ParseTickerResponse(msg []byte) ([]exchange.Quote, error) {
 	}
 
 	for _, val := range res {
+
 		if val.Pair != "" {
-			quotes = append(quotes, *exchange.NewExchangeQuote(exchange.BINANCE, val.Pair, val.Price))
+			product := c.productMap[val.Pair]
+			quotes = append(quotes, exchange.Quote{
+				Exchange: c.exchangeName,
+				Price:    val.Price,
+				ExPair:   product.ExPair,
+				HePair:   product.HePair,
+				ExBase:   product.ExBase,
+				HeBase:   product.HeBase,
+				ExQuote:  product.ExQuote,
+				HeQuote:  product.HeQuote,
+			})
 		}
 	}
 	return quotes, nil
