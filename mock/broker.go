@@ -6,7 +6,7 @@ import (
 
 func MakeMockProductMap() exchange.ProductMap {
 	productMap := make(exchange.ProductMap)
-	exchanges := []string{exchange.COINBASE, exchange.KRAKEN, exchange.BINANCE}
+	exchanges := []string{exchange.COINBASE, exchange.KRAKEN, exchange.BINANCE, exchange.BITFINEX}
 	for _, ex := range exchanges {
 		if _, ok := productMap[ex]; !ok {
 			productMap[ex] = make(exchange.ExchangeProductMap)
@@ -25,6 +25,12 @@ func MakeMockProductMap() exchange.ProductMap {
 		case exchange.BINANCE:
 			productMap[exchange.BINANCE]["MOCKUSD"] = exchange.Product{
 				Exchange: exchange.BINANCE,
+				HePair:   "MOCK-USD",
+				ExPair:   "MOCKUSD",
+			}
+		case exchange.BITFINEX:
+			productMap[exchange.BITFINEX]["MOCKUSD"] = exchange.Product{
+				Exchange: exchange.BITFINEX,
 				HePair:   "MOCK-USD",
 				ExPair:   "MOCKUSD",
 			}

@@ -90,9 +90,9 @@ func (b *Broker) buildProductMap() error {
 		}
 		var exPair string
 		switch exchange {
-		case "kraken":
+		case KRAKEN:
 			exPair = strings.Replace(product.ExPair, "-", "/", 1)
-		case "binance":
+		case BITFINEX, BINANCE:
 			exPair = strings.Replace(product.ExPair, "-", "", 1)
 		default:
 			exPair = product.ExPair

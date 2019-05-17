@@ -30,7 +30,8 @@ func TestStart(t *testing.T) {
 	errorCh := make(chan error, 1)
 	ctx := context.TODO()
 	client := bitfinex.NewClient(mock.NewConnector(ignoreFunc), quoteCh, errorCh)
-	client.Start(ctx)
+	productMap := mock.MakeMockProductMap()
+	client.Start(ctx, productMap)
 	for i := 0; i < len(client.Pairs)+1; i++ {
 		var channelID int
 		if i == 0 {
