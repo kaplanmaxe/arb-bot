@@ -19,10 +19,11 @@ func TestStart(t *testing.T) {
 	ctx := context.TODO()
 
 	client := coinbase.NewClient(mock.NewConnector(ignoreFunc), quoteCh, errorCh)
-	client.Start(ctx)
+	productMap := mock.MakeMockProductMap()
+	client.Start(ctx, productMap)
 
 	mockResponse := &coinbase.TickerResponse{
-		Pair:  "BTCUSD",
+		Pair:  "MOCK-USD",
 		Price: "1000000.00",
 	}
 	msg, err := json.Marshal(mockResponse)
@@ -37,7 +38,7 @@ listener:
 	for {
 		select {
 		case quote := <-quoteCh:
-			if mockResponse.Pair != quote.Pair || mockResponse.Price != quote.Price {
+			if mockResponse.Pair != quote.HePair || mockResponse.Price != quote.Price {
 				t.Fatalf("Expecting response %#v but got %#v", mockResponse, quote)
 			}
 			break listener

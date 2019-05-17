@@ -23,7 +23,8 @@ func TestStart(t *testing.T) {
 	errorCh := make(chan error, 1)
 	ctx := context.TODO()
 	client := kraken.NewClient(mock.NewConnector(ignoreFunc), quoteCh, errorCh)
-	client.Start(ctx)
+	productMap := mock.MakeMockProductMap()
+	client.Start(ctx, productMap)
 	for i := 0; i < len(client.Pairs)+1; i++ {
 		var channelID int
 		if i == 0 {
@@ -33,7 +34,7 @@ func TestStart(t *testing.T) {
 		}
 		subscribeResponse := &kraken.SubscriptionResponse{
 			ChannelID: channelID,
-			Pair:      "MOCKUSD",
+			Pair:      "MOCK/USD",
 		}
 		msg, err := json.Marshal(subscribeResponse)
 		if err != nil {

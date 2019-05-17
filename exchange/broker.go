@@ -27,13 +27,27 @@ func NewBroker(exchanges []Exchange, db ProductStorage) *Broker {
 	return &Broker{
 		exchanges:  exchanges,
 		db:         db,
-		ProductMap: make(productMap),
+		ProductMap: make(ProductMap),
 	}
 }
 
+type Product struct {
+	Exchange string `json:"exchange"`
+	ExPair   string `json:"ex_pair"`
+	HePair   string `json:"he_pair"`
+	ExBase   string `json:"ex_base"`
+	ExQuote  string `json:"ex_quote"`
+	HeBase   string `json:"he_base"`
+	HeQuote  string `json:"he_quote"`
+}
+
+// ExchangeProductMap is a map of pairs to product details
+type ExchangeProductMap map[string]Product
+
+// ProductMap is a map that normalizes all products (pairs)
 // First key is exchange, second key is pair
 // TODO: make more descriptive
-type productMap map[string]map[string]Product
+type ProductMap map[string]ExchangeProductMap
 
 // Broker is an interface to start a new instance of a broker
 // type Broker interface {
@@ -45,7 +59,7 @@ type productMap map[string]map[string]Product
 type Broker struct {
 	exchanges  []Exchange
 	db         ProductStorage
-	ProductMap productMap
+	ProductMap ProductMap
 }
 
 // Start starts a new exchange engine
@@ -55,7 +69,7 @@ func (b *Broker) Start(ctx context.Context) error {
 		return fmt.Errorf("Error fetching product map: %s", err)
 	}
 	for _, exchange := range b.exchanges {
-		err := exchange.Start(ctx)
+		err := exchange.Start(ctx, b.ProductMap)
 		if err != nil {
 			return err
 		}

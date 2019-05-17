@@ -21,6 +21,7 @@ type Client struct {
 	API            api.WebSocketHelper
 	channelPairMap exchange.ChannelPairMap
 	exchangeName   string
+	productMap     exchange.ExchangeProductMap
 }
 
 // NewClient returns a new instance of the API
@@ -35,7 +36,8 @@ func NewClient(api api.WebSocketHelper, quoteCh chan<- exchange.Quote, errorCh c
 }
 
 // Start starts the api connection and listens for new ticker messages
-func (c *Client) Start(ctx context.Context) error {
+func (c *Client) Start(ctx context.Context, productMap exchange.ProductMap) error {
+	c.productMap = productMap[c.exchangeName]
 	err := c.GetPairs()
 	if err != nil {
 		return err
@@ -125,7 +127,17 @@ func (c *Client) ParseTickerResponse(msg []byte) ([]exchange.Quote, error) {
 	}
 	c.getPair(&res)
 	if res.Pair != "" {
-		quotes = append(quotes, *exchange.NewExchangeQuote(c.exchangeName, res.Pair, res.Price))
+		product := c.productMap[res.Pair]
+		quotes = append(quotes, exchange.Quote{
+			Exchange: c.exchangeName,
+			Price:    res.Price,
+			ExPair:   product.ExPair,
+			HePair:   product.HePair,
+			ExBase:   product.ExBase,
+			HeBase:   product.HeBase,
+			ExQuote:  product.ExQuote,
+			HeQuote:  product.HeQuote,
+		})
 	}
 	return quotes, nil
 }
@@ -157,7 +169,7 @@ func (c *Client) StartTickerListener(ctx context.Context) {
 				if err != nil {
 					c.errorCh <- err
 				} else if len(res) > 0 {
-					if res[0].Pair != "" {
+					if res[0].HePair != "" {
 						c.quoteCh <- res[0]
 					}
 				}
