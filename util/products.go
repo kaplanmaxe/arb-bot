@@ -29,7 +29,8 @@ type config struct {
 type product struct {
 	ID       int    `json:"id"`
 	Exchange string `json:"exchange"`
-	Pair     string `json:"pair"`
+	ExPair   string `json:"ex_pair"`
+	HePair   string `json:"he_pair"`
 	ExBase   string `json:"ex_base"`
 	ExQuote  string `json:"ex_quote"`
 	HeBase   string `json:"he_base"`
@@ -46,7 +47,8 @@ type apiResponse struct {
 }
 type apiProduct struct {
 	Exchange string `json:"exchange"`
-	Pair     string `json:"pair"`
+	ExPair   string `json:"ex_pair"`
+	HePair   string `json:"he_pair"`
 	ExBase   string `json:"exchange_fsym"`
 	ExQuote  string `json:"exchange_tsym"`
 	HeBase   string `json:"fsym"`
@@ -92,7 +94,7 @@ func (c *client) fetchProducts() ([]product, error) {
 	for results.Next() {
 		var p product
 
-		err = results.Scan(&p.ID, &p.Exchange, &p.Pair, &p.ExBase, &p.ExQuote, &p.HeBase, &p.HeQuote)
+		err = results.Scan(&p.ID, &p.Exchange, &p.ExPair, &p.HePair, &p.ExBase, &p.ExQuote, &p.HeBase, &p.HeQuote)
 		if err != nil {
 			return products, fmt.Errorf("Error getting products: %s", err)
 		}
@@ -143,7 +145,8 @@ func (c *client) getProducts(exchange string) ([]apiProduct, error) {
 			chars = []rune(val.ExQuote)
 			val.ExQuote = string(chars[1:len(chars)])
 		}
-		val.Pair = fmt.Sprintf("%s-%s", val.HeBase, val.HeQuote)
+		val.HePair = fmt.Sprintf("%s-%s", val.HeBase, val.HeQuote)
+		val.ExPair = fmt.Sprintf("%s-%s", val.ExBase, val.ExQuote)
 		products = append(products, val)
 	}
 	return products, nil
@@ -154,7 +157,8 @@ func (c *client) insertProducts(exchange string, products []apiProduct) error {
 		_, err := c.db.Exec(
 			`INSERT INTO products (
 				exchange,
-				pair,
+				ex_pair,
+				he_pair,
 				ex_base,
 				ex_quote,
 				he_base,
@@ -165,10 +169,12 @@ func (c *client) insertProducts(exchange string, products []apiProduct) error {
 				?,
 				?,
 				?,
+				?,
 				?
 			);`,
 			&val.Exchange,
-			&val.Pair,
+			&val.ExPair,
+			&val.HePair,
 			&val.ExBase,
 			&val.ExQuote,
 			&val.HeBase,

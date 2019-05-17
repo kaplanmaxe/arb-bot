@@ -5,7 +5,8 @@ USE helgart;
 CREATE TABLE IF NOT EXISTS products (
     id bigint(20) not null AUTO_INCREMENT,
     exchange varchar(50) not null,
-    pair varchar(10) not null,
+    ex_pair varchar(20) not null,
+    he_pair varchar(20) not null,
     ex_base varchar(10) not null,
     ex_quote varchar(10) not null,
     he_base varchar(10) not null,
