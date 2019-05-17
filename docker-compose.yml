@@ -1,0 +1,16 @@
+version: '3.1'
+
+services:
+
+  db:
+    container_name: helgart_db
+    image: mariadb:10.4.4-bionic
+    restart: always
+    ports:
+      - "33104:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: example
+    volumes:
+      - helgart_db:/var/lib/mysql
+volumes:
+  helgart_db:

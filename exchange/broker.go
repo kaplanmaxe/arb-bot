@@ -3,7 +3,6 @@ package exchange
 import (
 	"context"
 
-	// TODO: fix
 	"github.com/kaplanmaxe/helgart/api"
 )
 
@@ -17,15 +16,6 @@ const (
 	// BITFINEX represents the bitfinex api
 	BITFINEX = "bitfinex"
 )
-
-// API is an interface each exchange client should satisfy
-// TODO: remove
-// type API interface {
-// 	Start(context.Context) error
-// 	GetURL() *url.URL
-// 	ParseTickerResponse([]byte) ([]b.Quote, error)
-// 	FormatSubscribeRequest() interface{}
-// }
 
 // NewBroker returns a new broker interface
 func NewBroker(exchanges []api.Exchange) Broker {

@@ -40,8 +40,6 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// coinbase := newapi.NewExchange(coinbase.NewClient(ctx, quoteCh, errorCh)) // test
-
 	go func() {
 		for {
 			select {

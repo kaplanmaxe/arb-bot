@@ -11,6 +11,12 @@ run: build
 run-race: build
 	go run -race main.go
 
+up:
+	@(docker-compose up -d)
+
+down:
+	@(docker-compose down)
+
 lint:
 	@(golint --set_exit_status ${FILES})
 
@@ -22,4 +28,7 @@ unit-race:
 
 test: lint unit unit-race
 
-.PHONY: build run run-race lint unit unit-race test
+mysql:
+	@(mysql -u root -h 0.0.0.0 -P 33104 -p)
+
+.PHONY: build run run-race up down lint unit unit-race test mysql
