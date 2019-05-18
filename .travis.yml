@@ -14,7 +14,5 @@ script:
   - make
   - make install
   - broker --version
-  - make up
-  - docker exec -ti helgart_broker helgart-broker --version
-  - docker logs helgart_broker
-  - make down
+  - docker build -t helgart/broker
+  - docker run -ti --rm helgart/broker broker --version

@@ -6,9 +6,9 @@ ADD ./ /go/src/github.com/kaplanmaxe/helgart
       
 RUN apk add --no-cache --update alpine-sdk make && \
   cd /go/src/github.com/kaplanmaxe/helgart && \
-  make build-broker && \
+  make install && \
   ls ./bin && \
-  mv ./bin/helgart-broker /usr/bin/
+  mv /go/bin/broker /usr/bin/
 
 # Create the second stage with the most basic that we need - a 
 # busybox which contains some tiny utilities like `ls`, `cp`, 
@@ -26,7 +26,7 @@ RUN apk update \
         && update-ca-certificates 2>/dev/null || true
 
 # Retrieve the binary from the previous stage
-COPY --from=builder /usr/bin/helgart-broker /bin/
+COPY --from=builder /usr/bin/broker /bin/
 
 # Set the binary as the entrypoint of the container
 # CMD [ "helgart-broker" ]
