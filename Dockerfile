@@ -27,8 +27,6 @@ RUN apk update \
 
 # Retrieve the binary from the previous stage
 COPY --from=builder /usr/bin/helgart-broker /bin/
-# COPY ./.config.docker.yml ./.config.yml
-# RUN apk add bash
 
 # Set the binary as the entrypoint of the container
 # CMD [ "helgart-broker" ]

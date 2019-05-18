@@ -53,12 +53,6 @@ type ExProductMap map[string]Product
 // TODO: make more descriptive
 type ProductMap map[string]ExProductMap
 
-// Broker is an interface to start a new instance of a broker
-// type Broker interface {
-// 	Start(context.Context) error
-// 	buildProductMap() error
-// }
-
 // Broker is a struct representing a group of exchanges
 type Broker struct {
 	exchanges  []Exchange

@@ -4,14 +4,24 @@ PROJECT_ROOT = $(shell pwd)
 
 default: build
 
+# BUILD
 build-broker:
 	@(go build -v -o ./bin/${BROKER_BIN} ./cmd/broker/main.go)
 
+build: build-broker
+
+# install
+install:
+	@(go install github/kaplanmaxe/helgart/cmd/broker)
+
+# RUN
 run-broker: build-broker
 	./bin/${BROKER_BIN} --config ${PROJECT_ROOT}/.config.yml
 
-run-race: build
-	go run -race main.go
+run-version: build-broker
+	./bin/${BROKER_BIN} --version
+
+run: run-broker
 
 up:
 	@(docker-compose up -d)
@@ -20,6 +30,7 @@ up:
 down:
 	@(docker-compose down)
 
+# TEST
 lint:
 	@(golint --set_exit_status ${FILES})
 
@@ -34,4 +45,4 @@ test: lint unit unit-race
 mysql:
 	@(mysql -u root -h 0.0.0.0 -P 33104 -p)
 
-.PHONY: build-broker run-broker run run-race up down lint unit unit-race test mysql
+.PHONY: build build-broker run run-version run-broker run run-race up down lint unit unit-race test mysql

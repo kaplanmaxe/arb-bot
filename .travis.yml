@@ -1,0 +1,16 @@
+language: go
+
+go:
+  - 1.12.4
+
+services:
+  - docker
+
+script:
+  - go get -u golang.org/x/lint/golint
+  - make
+  - make install
+  - make lint
+  - make unit
+  - make unit-race
+  - broker --version

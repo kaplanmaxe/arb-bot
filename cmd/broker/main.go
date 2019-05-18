@@ -47,9 +47,18 @@ func getConfig(path *string) (config, error) {
 	return cfg, nil
 }
 
+const version = "0.0.1-alpha"
+
 func main() {
+	var versionCalled bool
 	cfgPath := flag.String("config", ".config.yml", "absolute path to config file")
+	flag.BoolVar(&versionCalled, "version", false, "version number")
 	flag.Parse()
+	// version flag
+	if versionCalled {
+		fmt.Printf("helgart-broker version: %s\n", version)
+		os.Exit(0)
+	}
 	cfg, err := getConfig(cfgPath)
 	if err != nil {
 		log.Fatal(err)
