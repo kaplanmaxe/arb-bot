@@ -12,7 +12,7 @@ build: build-broker
 
 # install
 install:
-	@(go install github/kaplanmaxe/helgart/cmd/broker)
+	@(go install github.com/kaplanmaxe/helgart/cmd/broker)
 
 # RUN
 run-broker: build-broker
