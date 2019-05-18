@@ -15,6 +15,7 @@ run-race: build
 
 up:
 	@(docker-compose up -d)
+	@(docker logs --follow helgart_broker)
 
 down:
 	@(docker-compose down)
