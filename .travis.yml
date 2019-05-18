@@ -15,7 +15,6 @@ jobs:
   include:
     name: build
     script:
-      - go get -u golang.org/x/lint/golint
       - make
       - make install
       - broker --version
@@ -27,6 +26,7 @@ jobs:
       - make down
     name: test
     script:
+      - go get -u golang.org/x/lint/golint
       - make lint
       - make unit
       - make unit-race
