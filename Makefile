@@ -25,6 +25,8 @@ run: run-broker
 
 up:
 	@(docker-compose up -d)
+
+broker-logs:
 	@(docker logs --follow helgart_broker)
 
 down:
@@ -45,4 +47,4 @@ test: lint unit unit-race
 mysql:
 	@(mysql -u root -h 0.0.0.0 -P 33104 -p)
 
-.PHONY: build build-broker run run-version run-broker run run-race up down lint unit unit-race test mysql
+.PHONY: build build-broker run run-version run-broker run run-race up broker-logs down lint unit unit-race test mysql

@@ -6,11 +6,28 @@ go:
 services:
   - docker
 
-script:
-  - go get -u golang.org/x/lint/golint
-  - make
-  - make install
-  - make lint
-  - make unit
-  - make unit-race
-  - broker --version
+stages:
+  - build
+  - docker
+  - test
+
+jobs:
+  include:
+    name: build
+    script:
+      - go get -u golang.org/x/lint/golint
+      - make
+      - make install
+      - broker --version
+    name: docker
+    script:
+      - make up
+      - docker exec -ti helgart_broker helgart-broker --version
+      - docker logs helgart_broker
+      - make down
+    name: test
+    script:
+      - make lint
+      - make unit
+      - make unit-race
+      - broker --version
