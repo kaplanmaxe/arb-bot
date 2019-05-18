@@ -24,7 +24,6 @@ services:
     container_name: helgart_broker
     image: helgart/broker:0.0.1
     restart: always
-  
-  
+
 volumes:
   helgart_db:
