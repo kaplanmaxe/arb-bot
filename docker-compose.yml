@@ -1,7 +1,19 @@
 version: '3.1'
 
 services:
-
+  broker:
+    command: helgart-broker --config /home/.config.yml
+    build:
+      context: .
+      dockerfile: Dockerfile
+    links:
+      - db:db
+    volumes:
+      - ./.config.docker.yml:/home/.config.yml
+    container_name: helgart_broker
+    image: helgart/broker:0.0.1
+    restart: always
+  
   db:
     container_name: helgart_db
     image: mariadb:10.4.4-bionic

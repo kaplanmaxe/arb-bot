@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"flag"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -32,9 +33,9 @@ type config struct {
 	DB      db
 }
 
-func getConfig() (config, error) {
+func getConfig(path *string) (config, error) {
 	var cfg config
-	b, err := ioutil.ReadFile("./.config.yml")
+	b, err := ioutil.ReadFile(*path)
 	if err != nil {
 		return cfg, fmt.Errorf("Error looking for config file: %s", err)
 	}
@@ -47,7 +48,9 @@ func getConfig() (config, error) {
 }
 
 func main() {
-	cfg, err := getConfig()
+	cfgPath := flag.String("config", ".config.yml", "absolute path to config file")
+	flag.Parse()
+	cfg, err := getConfig(cfgPath)
 	if err != nil {
 		log.Fatal(err)
 	}

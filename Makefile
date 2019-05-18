@@ -1,12 +1,14 @@
 FILES := $(shell go list ./...)
+BROKER_BIN = helgart-broker
+PROJECT_ROOT = $(shell pwd)
 
 default: build
 
-build:
-	@(go build -o ./bin/helgart main.go)
+build-broker:
+	@(go build -v -o ./bin/${BROKER_BIN} ./cmd/broker/main.go)
 
-run: build
-	@(./bin/helgart)
+run-broker: build-broker
+	./bin/${BROKER_BIN} --config ${PROJECT_ROOT}/.config.yml
 
 run-race: build
 	go run -race main.go
@@ -31,4 +33,4 @@ test: lint unit unit-race
 mysql:
 	@(mysql -u root -h 0.0.0.0 -P 33104 -p)
 
-.PHONY: build run run-race up down lint unit unit-race test mysql
+.PHONY: build-broker run-broker run run-race up down lint unit unit-race test mysql
