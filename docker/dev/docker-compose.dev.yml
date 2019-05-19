@@ -12,17 +12,16 @@ services:
     volumes:
       - helgart_db:/var/lib/mysql
 
-  broker:
-    command: broker --config /home/.config.yml
+  broker-dev:
     build:
       context: .
       dockerfile: Dockerfile
     links:
       - db:db
     volumes:
-      - ./.config.docker.yml:/home/.config.yml
-    container_name: helgart_broker
-    image: helgart/broker:0.0.1
+        - ../../:/go/src/github.com/kaplanmaxe/helgart
+    container_name: helgart_broker_dev
+    image: helgart/broker-dev:0.0.1
     restart: always
 
 volumes:

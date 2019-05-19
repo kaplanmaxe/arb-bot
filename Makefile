@@ -1,5 +1,5 @@
 FILES := $(shell go list ./...)
-BROKER_BIN = helgart-broker
+BROKER_BIN = broker
 PROJECT_ROOT = $(shell pwd)
 
 default: build
@@ -15,6 +15,13 @@ install:
 	@(go install github.com/kaplanmaxe/helgart/cmd/broker)
 
 # RUN
+dev-up:
+	@(docker-compose -f docker/dev/docker-compose.dev.yml up -d)
+	@(docker logs --follow helgart_broker_dev)
+
+dev-down:
+	@(docker-compose -f docker/dev/docker-compose.dev.yml down)
+
 run-broker: build-broker
 	./bin/${BROKER_BIN} --config ${PROJECT_ROOT}/.config.yml
 
@@ -47,4 +54,4 @@ test: lint unit unit-race
 mysql:
 	@(mysql -u root -h 0.0.0.0 -P 33104 -p)
 
-.PHONY: build build-broker run run-version run-broker run run-race up broker-logs down lint unit unit-race test mysql
+.PHONY: build build-broker dev-up dev-down run run-version run-broker run run-race up broker-logs down lint unit unit-race test mysql

@@ -14,14 +14,14 @@ CREATE TABLE IF NOT EXISTS products (
     PRIMARY KEY(id)
 );
 
-SELECT 
-    pair, 
-    COUNT(pair)
-FROM
-    products
-GROUP BY pair
-HAVING COUNT(pair) > 1
-LIMIT 10;
+-- SELECT 
+--     pair, 
+--     COUNT(pair)
+-- FROM
+--     products
+-- GROUP BY pair
+-- HAVING COUNT(pair) > 1
+-- LIMIT 10;
 
 -- PAIRS WITH MORE THAN ONE MARKET
 -- SELECT count(*) FROM (SELECT      pair,      COUNT(pair) FROM     products GROUP BY pair HAVING COUNT(pair) = 1) as data;
