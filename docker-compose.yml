@@ -13,7 +13,7 @@ services:
       - helgart_db:/var/lib/mysql
 
   broker:
-    command: helgart-broker --config /home/.config.yml
+    command: broker --config /home/.config.yml
     build:
       context: .
       dockerfile: Dockerfile

@@ -24,7 +24,7 @@ run-version: build-broker
 run: run-broker
 
 up:
-	@(docker-compose up -d)
+	@(docker-compose up --build -d)
 
 broker-logs:
 	@(docker logs --follow helgart_broker)
