@@ -18,6 +18,7 @@ import (
 	"github.com/kaplanmaxe/helgart/broker/exchange"
 	"github.com/kaplanmaxe/helgart/broker/kraken"
 	"github.com/kaplanmaxe/helgart/broker/storage/mysql"
+	"github.com/kaplanmaxe/helgart/broker/storage/redis"
 )
 
 type db struct {
@@ -28,9 +29,15 @@ type db struct {
 	Host     string `yaml:"HELGART_DB_HOST"`
 }
 
+type cache struct {
+	Host string `yaml:"HELGART_CACHE_HOST"`
+	Port int    `yaml:"HELGART_CACHE_PORT"`
+}
+
 type config struct {
 	Version string `yaml:"version"`
 	DB      db
+	Cache   cache
 }
 
 func getConfig(path *string) (config, error) {
@@ -76,6 +83,15 @@ func main() {
 		log.Fatal(err)
 	}
 
+	cache := redis.NewClient(&redis.Config{
+		Host: cfg.Cache.Host,
+		Port: cfg.Cache.Port,
+	})
+	err = cache.Connect()
+	if err != nil {
+		log.Fatal(err)
+	}
+
 	log.Print("Starting quote server")
 	interrupt := make(chan os.Signal, 1)
 	doneCh := make(chan struct{}, 1)
@@ -90,7 +106,7 @@ func main() {
 		coinbase.NewClient(api.NewWebSocketHelper(exchange.COINBASE), quoteCh, errorCh),
 		binance.NewClient(api.NewWebSocketHelper(exchange.BINANCE), quoteCh, errorCh),
 		bitfinex.NewClient(api.NewWebSocketHelper(exchange.BITFINEX), quoteCh, errorCh),
-	}, db)
+	}, db, cache)
 	err = broker.Start(ctx)
 
 	if err != nil {
@@ -101,7 +117,14 @@ func main() {
 		for {
 			select {
 			case quote := <-quoteCh:
-				log.Printf("Quote: %#v", quote)
+				if _, ok := broker.ArbProducts[quote.HePair]; ok {
+					// TODO: investigate this bug where coinbase returns no price for MKR-BTC
+					if quote.Price == "" {
+						continue
+					}
+					cache.SetPair(quote.HePair, quote.Exchange, quote.Price)
+					log.Printf("Quote: %#v", quote)
+				}
 			case err := <-errorCh:
 				fmt.Printf("Error: %s\n", err)
 			case <-interrupt:

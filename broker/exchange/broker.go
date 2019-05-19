@@ -21,16 +21,14 @@ const (
 // This is intended to normalize products (pairs) where some exchanges might list IOTA-USD as IOT-USD
 type ProductStorage interface {
 	Connect() error
-	FetchProducts() ([]Product, error)
+	FetchAllProducts() ([]Product, error)
+	FetchArbProducts() (ArbProductMap, error)
 }
 
-// NewBroker returns a new broker interface
-func NewBroker(exchanges []Exchange, db ProductStorage) *Broker {
-	return &Broker{
-		exchanges:  exchanges,
-		db:         db,
-		ProductMap: make(ProductMap),
-	}
+// ProductCache is an interface for an in-memory cache instance (Ex: Redis)
+type ProductCache interface {
+	Connect() error
+	SetPair(string, string, string) error
 }
 
 // Product is a struct representing all the format of each product.
@@ -53,11 +51,26 @@ type ExProductMap map[string]Product
 // TODO: make more descriptive
 type ProductMap map[string]ExProductMap
 
+// ArbProductMap represents a map of all pairs that have more than one market
+type ArbProductMap map[string]struct{}
+
 // Broker is a struct representing a group of exchanges
 type Broker struct {
-	exchanges  []Exchange
-	db         ProductStorage
-	ProductMap ProductMap
+	ProductMap  ProductMap
+	ArbProducts ArbProductMap
+	exchanges   []Exchange
+	db          ProductStorage
+	cache       ProductCache
+}
+
+// NewBroker returns a new broker interface
+func NewBroker(exchanges []Exchange, db ProductStorage, cache ProductCache) *Broker {
+	return &Broker{
+		exchanges:  exchanges,
+		db:         db,
+		cache:      cache,
+		ProductMap: make(ProductMap),
+	}
 }
 
 // Start starts a new exchange engine
@@ -66,6 +79,16 @@ func (b *Broker) Start(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("Error fetching product map: %s", err)
 	}
+	arbProducts, err := b.db.FetchArbProducts()
+	if err != nil {
+		return fmt.Errorf("Error fetching arb pairs: %s", err)
+	}
+	b.ArbProducts = arbProducts
+	// err = b.cache.SetPair("MOCKUSD")
+	// if err != nil {
+	// 	log.Fatal("NOW", err)
+	// }
+	// log.Fatal("Good")
 	for _, exchange := range b.exchanges {
 		err := exchange.Start(ctx, b.ProductMap)
 		if err != nil {
@@ -77,7 +100,7 @@ func (b *Broker) Start(ctx context.Context) error {
 }
 
 func (b *Broker) buildProductMap() error {
-	products, err := b.db.FetchProducts()
+	products, err := b.db.FetchAllProducts()
 	if err != nil {
 		return fmt.Errorf("Error fetching products: %s", err)
 	}

@@ -15,12 +15,12 @@ CREATE TABLE IF NOT EXISTS products (
 );
 
 -- SELECT 
---     pair, 
---     COUNT(pair)
+--     ex_pair, 
+--     COUNT(ex_pair)
 -- FROM
 --     products
--- GROUP BY pair
--- HAVING COUNT(pair) > 1
+-- GROUP BY ex_pair
+-- HAVING COUNT(ex_pair) > 1
 -- LIMIT 10;
 
 -- PAIRS WITH MORE THAN ONE MARKET

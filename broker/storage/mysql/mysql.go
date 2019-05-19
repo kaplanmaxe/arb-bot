@@ -45,8 +45,8 @@ func (c *Client) Connect() error {
 	return nil
 }
 
-// FetchProducts fetch products from the db so we can normalize pair names
-func (c *Client) FetchProducts() ([]exchange.Product, error) {
+// FetchAllProducts fetch all products from the db so we can normalize pair names
+func (c *Client) FetchAllProducts() ([]exchange.Product, error) {
 	var products []exchange.Product
 	results, err := c.DB.Query("SELECT exchange, ex_pair, he_pair, ex_base, ex_quote, he_base, he_quote FROM products")
 
@@ -62,6 +62,27 @@ func (c *Client) FetchProducts() ([]exchange.Product, error) {
 			return products, fmt.Errorf("Error getting products: %s", err)
 		}
 		products = append(products, p)
+	}
+	return products, nil
+}
+
+// FetchArbProducts fetches all products that have more than one market to arb
+func (c *Client) FetchArbProducts() (exchange.ArbProductMap, error) {
+	products := make(exchange.ArbProductMap)
+	results, err := c.DB.Query("SELECT ex_pair FROM products GROUP BY ex_pair HAVING COUNT(ex_pair) > 1;")
+
+	if err != nil {
+		return products, fmt.Errorf("Error getting products: %s", err)
+	}
+
+	for results.Next() {
+		var p string
+
+		err = results.Scan(&p)
+		if err != nil {
+			return products, fmt.Errorf("Error getting products: %s", err)
+		}
+		products[p] = struct{}{}
 	}
 	return products, nil
 }
