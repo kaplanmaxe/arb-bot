@@ -2,6 +2,7 @@ package kraken
 
 import (
 	"encoding/json"
+	"fmt"
 )
 
 // Enum for subscription events
@@ -57,9 +58,15 @@ type channelPairMap map[int]string
 func (s *TickerResponse) UnmarshalJSON(msg []byte) error {
 	// Hack for weird kraken response
 	var channel []int
-	json.Unmarshal(msg, &channel)
+	err := json.Unmarshal(msg, &channel)
+	if err != nil {
+		return fmt.Errorf("Error unmarshalling kraken TickerResponse: %s", err)
+	}
 	var tmp []map[string][]interface{}
-	json.Unmarshal(msg, &tmp)
+	err = json.Unmarshal(msg, &tmp)
+	if err != nil {
+		return fmt.Errorf("Error unmarshalling kraken TickerResponse: %s", err)
+	}
 	if len(tmp) != 0 {
 		s.Price = tmp[1]["a"][0].(string)
 		s.ChannelID = channel[0]
