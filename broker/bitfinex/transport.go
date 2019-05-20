@@ -170,34 +170,32 @@ func (c *Client) getPair(res *TickerResponse) {
 
 // StartTickerListener starts a new goroutine to listen for new ticker messages
 func (c *Client) StartTickerListener(ctx context.Context) {
-	go func() {
-	cLoop:
-		for {
-			message, err := c.API.ReadMessage()
-			if err != nil {
-				c.errorCh <- fmt.Errorf("Error reading from %s: %s", c.exchangeName, err)
-				return
-			}
+cLoop:
+	for {
+		message, err := c.API.ReadMessage()
+		if err != nil {
+			c.errorCh <- fmt.Errorf("Error reading from %s: %s", c.exchangeName, err)
+			return
+		}
 
-			select {
-			case <-ctx.Done():
-				err := c.API.Close()
-				if err != nil {
-					c.errorCh <- fmt.Errorf("Error closing %s: %s", c.exchangeName, err)
-				}
-				break cLoop
-			default:
-				res, err := c.ParseTickerResponse(message)
-				if err != nil {
-					c.errorCh <- err
-				} else if len(res) > 0 {
-					if res[0].Price != "" && res[0].HePair != "" {
-						c.quoteCh <- res[0]
-					}
+		select {
+		case <-ctx.Done():
+			err := c.API.Close()
+			if err != nil {
+				c.errorCh <- fmt.Errorf("Error closing %s: %s", c.exchangeName, err)
+			}
+			break cLoop
+		default:
+			res, err := c.ParseTickerResponse(message)
+			if err != nil {
+				c.errorCh <- err
+			} else if len(res) > 0 {
+				if res[0].Price != "" && res[0].HePair != "" {
+					c.quoteCh <- res[0]
 				}
 			}
 		}
-	}()
+	}
 }
 
 // GetURL returns the url for the websocket connection

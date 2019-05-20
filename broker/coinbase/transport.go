@@ -47,7 +47,7 @@ func (c *Client) Start(ctx context.Context, productMap exchange.ProductMap) erro
 	if err != nil {
 		return err
 	}
-	c.StartTickerListener(ctx)
+	go c.StartTickerListener(ctx)
 	return nil
 }
 
@@ -70,34 +70,32 @@ func (c *Client) FormatSubscribeRequest() interface{} {
 
 // StartTickerListener starts a new goroutine to listen for new ticker messages
 func (c *Client) StartTickerListener(ctx context.Context) {
-	go func() {
-	cLoop:
-		for {
-			message, err := c.API.ReadMessage()
-			if err != nil {
-				c.errorCh <- fmt.Errorf("Error reading from %s: %s", c.exchangeName, err)
-				return
-			}
+cLoop:
+	for {
+		message, err := c.API.ReadMessage()
+		if err != nil {
+			c.errorCh <- fmt.Errorf("Error reading from %s: %s", c.exchangeName, err)
+			return
+		}
 
-			select {
-			case <-ctx.Done():
-				err := c.API.Close()
-				if err != nil {
-					c.errorCh <- fmt.Errorf("Error closing %s: %s", c.exchangeName, err)
-				}
-				break cLoop
-			default:
-				res, err := c.ParseTickerResponse(message)
-				if err != nil {
-					c.errorCh <- err
-				} else if len(res) > 0 {
-					if res[0].HePair != "" {
-						c.quoteCh <- res[0]
-					}
+		select {
+		case <-ctx.Done():
+			err := c.API.Close()
+			if err != nil {
+				c.errorCh <- fmt.Errorf("Error closing %s: %s", c.exchangeName, err)
+			}
+			break cLoop
+		default:
+			res, err := c.ParseTickerResponse(message)
+			if err != nil {
+				c.errorCh <- err
+			} else if len(res) > 0 {
+				if res[0].HePair != "" {
+					c.quoteCh <- res[0]
 				}
 			}
 		}
-	}()
+	}
 }
 
 // ParseTickerResponse parses the ticker response and returns a new instance of a exchange.Quote
