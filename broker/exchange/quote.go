@@ -2,14 +2,15 @@ package exchange
 
 // Quote represents a quote from an exchange
 type Quote struct {
-	Exchange string
-	ExPair   string
-	HePair   string
-	ExBase   string
-	ExQuote  string
-	HeBase   string
-	HeQuote  string
-	Price    string
+	Exchange   string
+	ExPair     string
+	HePair     string
+	ExBase     string
+	ExQuote    string
+	HeBase     string
+	HeQuote    string
+	Price      string
+	PriceFloat float64 // price represented as a float
 }
 
 // krakenPairMap normalizes the pair names for common use

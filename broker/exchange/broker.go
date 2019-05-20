@@ -3,6 +3,7 @@ package exchange
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -48,28 +49,59 @@ type ExProductMap map[string]Product
 
 // ProductMap is a map that normalizes all products (pairs)
 // First key is exchange, second key is pair
-// TODO: make more descriptive
 type ProductMap map[string]ExProductMap
 
 // ArbProductMap represents a map of all pairs that have more than one market
 type ArbProductMap map[string]struct{}
 
+// ActiveMarket represents a market to go into the ActiveMarketMap
+type ActiveMarket struct {
+	Exchange string
+	HePair   string
+	ExPair   string
+	Price    float64
+}
+
+// ArbMarket represents a market for arbitrage with a spread, low exchange, and high exchange
+type ArbMarket struct {
+	HePair string
+	Spread float64
+	Low    ActiveMarket
+	High   ActiveMarket
+}
+
+// NewArbMarket returns a new ArbMarket
+func NewArbMarket(hePair string, low, high ActiveMarket) *ArbMarket {
+	spread := ((high.Price - low.Price) / low.Price) * 100
+	return &ArbMarket{
+		HePair: hePair,
+		Spread: spread,
+		Low:    low,
+		High:   high,
+	}
+}
+
+// ActiveMarketMap is a map representing markets broker is pulling from and receiving data from
+// the key will be the HePair and the value will be a Quote
+type ActiveMarketMap map[string][]ActiveMarket
+
 // Broker is a struct representing a group of exchanges
 type Broker struct {
-	ProductMap  ProductMap
-	ArbProducts ArbProductMap
-	exchanges   []Exchange
-	db          ProductStorage
-	cache       ProductCache
+	ProductMap    ProductMap
+	ArbProducts   ArbProductMap
+	ActiveMarkets ActiveMarketMap
+	exchanges     []Exchange
+	db            ProductStorage
+	cache         ProductCache
 }
 
 // NewBroker returns a new broker interface
-func NewBroker(exchanges []Exchange, db ProductStorage, cache ProductCache) *Broker {
+func NewBroker(exchanges []Exchange, db ProductStorage) *Broker {
 	return &Broker{
-		exchanges:  exchanges,
-		db:         db,
-		cache:      cache,
-		ProductMap: make(ProductMap),
+		exchanges:     exchanges,
+		db:            db,
+		ProductMap:    make(ProductMap),
+		ActiveMarkets: make(ActiveMarketMap),
 	}
 }
 
@@ -84,11 +116,6 @@ func (b *Broker) Start(ctx context.Context) error {
 		return fmt.Errorf("Error fetching arb pairs: %s", err)
 	}
 	b.ArbProducts = arbProducts
-	// err = b.cache.SetPair("MOCKUSD")
-	// if err != nil {
-	// 	log.Fatal("NOW", err)
-	// }
-	// log.Fatal("Good")
 	for _, exchange := range b.exchanges {
 		err := exchange.Start(ctx, b.ProductMap)
 		if err != nil {
@@ -121,4 +148,33 @@ func (b *Broker) buildProductMap() error {
 		b.ProductMap[exchange][exPair] = product
 	}
 	return nil
+}
+
+// InsertActiveMarket inserts a quote into the ActiveMarketMap
+func (b *Broker) InsertActiveMarket(market *ActiveMarket) {
+	// We check if the pair is already in the active market map
+	if _, ok := b.ActiveMarkets[market.HePair]; !ok {
+		// If not intialize slice
+		b.ActiveMarkets[market.HePair] = []ActiveMarket{}
+	}
+	// We now check if we have an exchange price in the active market map for the given pair
+	// and get the key in the slice
+	exchangeKey := -1
+	for key, val := range b.ActiveMarkets[market.HePair] {
+		if val.Exchange == market.Exchange {
+			exchangeKey = key
+		}
+	}
+	// If exchange price isn't in the active market map for the exchange, add it
+	if exchangeKey == -1 {
+		b.ActiveMarkets[market.HePair] = append(b.ActiveMarkets[market.HePair], *market)
+	} else {
+		// If it's already there, simply update the price
+		b.ActiveMarkets[market.HePair][exchangeKey].Price = market.Price
+	}
+
+	// We sort here to easily find the high and low price
+	sort.Slice(b.ActiveMarkets[market.HePair], func(i, j int) bool {
+		return b.ActiveMarkets[market.HePair][i].Price > b.ActiveMarkets[market.HePair][j].Price
+	})
 }

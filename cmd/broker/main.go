@@ -8,6 +8,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"strconv"
 	"time"
 
 	"github.com/go-yaml/yaml"
@@ -18,7 +19,6 @@ import (
 	"github.com/kaplanmaxe/helgart/broker/exchange"
 	"github.com/kaplanmaxe/helgart/broker/kraken"
 	"github.com/kaplanmaxe/helgart/broker/storage/mysql"
-	"github.com/kaplanmaxe/helgart/broker/storage/redis"
 )
 
 type db struct {
@@ -83,14 +83,14 @@ func main() {
 		log.Fatal(err)
 	}
 
-	cache := redis.NewClient(&redis.Config{
-		Host: cfg.Cache.Host,
-		Port: cfg.Cache.Port,
-	})
-	err = cache.Connect()
-	if err != nil {
-		log.Fatal(err)
-	}
+	// cache := redis.NewClient(&redis.Config{
+	// 	Host: cfg.Cache.Host,
+	// 	Port: cfg.Cache.Port,
+	// })
+	// err = cache.Connect()
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
 
 	log.Print("Starting quote server")
 	interrupt := make(chan os.Signal, 1)
@@ -106,7 +106,7 @@ func main() {
 		coinbase.NewClient(api.NewWebSocketHelper(exchange.COINBASE), quoteCh, errorCh),
 		binance.NewClient(api.NewWebSocketHelper(exchange.BINANCE), quoteCh, errorCh),
 		bitfinex.NewClient(api.NewWebSocketHelper(exchange.BITFINEX), quoteCh, errorCh),
-	}, db, cache)
+	}, db)
 	err = broker.Start(ctx)
 
 	if err != nil {
@@ -122,8 +122,26 @@ func main() {
 					if quote.Price == "" {
 						continue
 					}
-					cache.SetPair(quote.HePair, quote.Exchange, quote.Price)
-					log.Printf("Quote: %#v", quote)
+					price, err := strconv.ParseFloat(quote.Price, 64)
+					if err != nil {
+						log.Fatal(err)
+					}
+					quote.PriceFloat = price
+					broker.InsertActiveMarket(&exchange.ActiveMarket{
+						Exchange: quote.Exchange,
+						HePair:   quote.HePair,
+						ExPair:   quote.ExPair,
+						Price:    price,
+					})
+					var arbMarket exchange.ArbMarket
+					if len(broker.ActiveMarkets[quote.HePair]) > 1 {
+						pair := broker.ActiveMarkets[quote.HePair]
+						low := pair[len(pair)-1]
+						high := pair[0]
+						arbMarket = *exchange.NewArbMarket(low.HePair, low, high)
+						log.Printf("Arb Market: %#v", arbMarket)
+					}
+					// log.Printf("Quote: %#v", quote)
 				}
 			case err := <-errorCh:
 				fmt.Printf("Error: %s\n", err)
