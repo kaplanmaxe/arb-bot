@@ -17,3 +17,7 @@ var versionCmd = &cobra.Command{
 		fmt.Printf("helgart broker version: %s\n", version)
 	},
 }
+
+func init() {
+	rootCmd.AddCommand(versionCmd)
+}

@@ -26,7 +26,7 @@ run-broker: build-broker
 	./bin/${BROKER_BIN}
 
 run-version: build-broker
-	./bin/${BROKER_BIN} --version
+	./bin/${BROKER_BIN} version
 
 run: run-broker
 
