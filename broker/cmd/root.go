@@ -49,6 +49,10 @@ var rootCmd = &cobra.Command{
 	Short: "Start starts the broker service",
 	Long:  `broker fetches cryptocurrency markets and potentially exposes a websocket API`,
 	Run: func(cmd *cobra.Command, args []string) {
+		if err := viper.ReadInConfig(); err != nil {
+			log.Fatalf("Can't read config: %s", err)
+			os.Exit(1)
+		}
 		ws := &websocketHandler{
 			quoteCh:     make(chan exchange.Quote),
 			interruptCh: make(chan os.Signal, 1),
@@ -151,11 +155,6 @@ func initConfig() {
 		viper.SetConfigType("yaml")
 		viper.SetConfigName("broker.config")
 		viper.AddConfigPath("$HOME/.helgart")
-	}
-
-	if err := viper.ReadInConfig(); err != nil {
-		log.Fatalf("Can't read config: %s", err)
-		os.Exit(1)
 	}
 }
 
