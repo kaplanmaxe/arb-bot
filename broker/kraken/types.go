@@ -3,6 +3,7 @@ package kraken
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // Enum for subscription events
@@ -54,24 +55,35 @@ type SubscriptionResponse struct {
 // channelPairMap maps a channelid returned in the api to a specific pair
 type channelPairMap map[int]string
 
+type tickerResponse struct {
+	Ask []interface{} `json:"a"`
+}
+
 // UnmarshalJSON overrides UnmarshalJSON due to Kraken's weird output
 func (s *TickerResponse) UnmarshalJSON(msg []byte) error {
-	// Hack for weird kraken response
-	var channel []int
-	err := json.Unmarshal(msg, &channel)
+	// Ignore heartbeats
+	// TODO: can we be more efficient?
+	if strings.Contains(string(msg), "heartbeat") {
+		return nil
+	}
+	var resp []json.RawMessage
+	err := json.Unmarshal(msg, &resp)
 	if err != nil {
 		return fmt.Errorf("Error unmarshalling kraken TickerResponse: %s", err)
 	}
-	var tmp []map[string][]interface{}
-	err = json.Unmarshal(msg, &tmp)
+	var channel int
+	err = json.Unmarshal(resp[0], &channel)
 	if err != nil {
 		return fmt.Errorf("Error unmarshalling kraken TickerResponse: %s", err)
 	}
-	if len(tmp) != 0 {
-		s.Price = tmp[1]["a"][0].(string)
-		s.ChannelID = channel[0]
+	s.ChannelID = channel
+	// Get Price
+	var tickerInfo tickerResponse
+	err = json.Unmarshal(resp[1], &tickerInfo)
+	if err != nil {
+		return fmt.Errorf("Error unmarshalling kraken TickerResponse: %s", err)
 	}
-
+	s.Price = tickerInfo.Ask[0].(string)
 	return nil
 }
 

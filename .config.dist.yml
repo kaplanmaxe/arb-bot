@@ -8,3 +8,5 @@ db:
 cache:
   HELGART_CACHE_HOST:
   HELGART_CACHE_PORT:
+trading:
+  HELGART_ARBITRAGE: false

@@ -34,10 +34,15 @@ type cache struct {
 	Port int    `yaml:"HELGART_CACHE_PORT"`
 }
 
+type trading struct {
+	Arbitrage bool `yaml:"HELGART_ARBITRAGE"`
+}
+
 type config struct {
 	Version string `yaml:"version"`
 	DB      db
 	Cache   cache
+	Trading trading
 }
 
 func getConfig(path *string) (config, error) {
@@ -117,32 +122,12 @@ func main() {
 		for {
 			select {
 			case quote := <-quoteCh:
-				if _, ok := broker.ArbProducts[quote.HePair]; ok {
-					// TODO: investigate this bug where coinbase returns no price for MKR-BTC
-					if quote.Price == "" {
-						continue
-					}
-					price, err := strconv.ParseFloat(quote.Price, 64)
-					if err != nil {
-						log.Fatal(err)
-					}
-					quote.PriceFloat = price
-					broker.InsertActiveMarket(&exchange.ActiveMarket{
-						Exchange: quote.Exchange,
-						HePair:   quote.HePair,
-						ExPair:   quote.ExPair,
-						Price:    price,
-					})
-					var arbMarket exchange.ArbMarket
-					if len(broker.ActiveMarkets[quote.HePair]) > 1 {
-						pair := broker.ActiveMarkets[quote.HePair]
-						low := pair[len(pair)-1]
-						high := pair[0]
-						arbMarket = *exchange.NewArbMarket(low.HePair, low, high)
-						log.Printf("Arb Market: %#v", arbMarket)
-					}
-					// log.Printf("Quote: %#v", quote)
+				if cfg.Trading.Arbitrage {
+					arbitrageHandler(broker, quote)
+				} else {
+					log.Printf("Quote: %#v", quote)
 				}
+
 			case err := <-errorCh:
 				fmt.Printf("Error: %s\n", err)
 			case <-interrupt:
@@ -159,4 +144,32 @@ func main() {
 		}
 	}()
 	<-doneCh
+}
+
+func arbitrageHandler(broker *exchange.Broker, quote exchange.Quote) {
+	if _, ok := broker.ArbProducts[quote.HePair]; ok {
+		// TODO: investigate this bug where coinbase returns no price for MKR-BTC
+		if quote.Price == "" {
+			return
+		}
+		price, err := strconv.ParseFloat(quote.Price, 64)
+		if err != nil {
+			log.Fatal(err)
+		}
+		quote.PriceFloat = price
+		broker.InsertActiveMarket(&exchange.ActiveMarket{
+			Exchange: quote.Exchange,
+			HePair:   quote.HePair,
+			ExPair:   quote.ExPair,
+			Price:    price,
+		})
+		var arbMarket exchange.ArbMarket
+		if len(broker.ActiveMarkets[quote.HePair]) > 1 {
+			pair := broker.ActiveMarkets[quote.HePair]
+			low := pair[len(pair)-1]
+			high := pair[0]
+			arbMarket = *exchange.NewArbMarket(low.HePair, low, high)
+			log.Printf("Arb Market: %#v", arbMarket)
+		}
+	}
 }
