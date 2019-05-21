@@ -33,46 +33,7 @@ func (ws *websocketHandler) quoteHandler(w http.ResponseWriter, r *http.Request)
 		log.Print("upgrade:", err)
 		return
 	}
-	// select {
-	// case quote := <-ws.quoteCh:
-	// 	// fmt.Println(1)
-	// 	err = c.WriteJSON(quote)
-	// 	if err != nil {
-	// 		fmt.Println("Closed")
-	// 		c.Close()
-	// 		// break handler
-	// 	}
-	// default:
-	// 	fmt.Println("OH")
-	// }
-	// quote := <-ws.quoteCh
-	// err = c.WriteJSON(quote)
-	// if err != nil {
-	// 	fmt.Println("WS Conn closed")
-	// 	c.Close()
-	// }
 	defer c.Close()
-	// handler:
-	// 	for {
-	// 		select {
-	// 		case quote := <-ws.quoteCh:
-	// 			// fmt.Println(1)
-	// 			err = c.WriteJSON(quote)
-	// 			if err != nil {
-	// 				fmt.Println("Closed")
-	// 				// c.Close()
-	// 				break handler
-	// 			}
-	// 		// case <-ws.interruptCh:
-	// 		// 	// fmt.Println(3)
-	// 		// 	c.Close()
-	// 		// 	fmt.Println("NOW")
-	// 		// 	break handler
-	// 		default:
-	// 			// fmt.Println(2)
-	// 		}
-
-	// 	}
 	for quote := range ws.quoteCh {
 		err = c.WriteJSON(quote)
 		if err != nil {
@@ -110,9 +71,7 @@ var rootCmd = &cobra.Command{
 		}
 
 		log.Print("Starting quote server")
-		// interrupt := make(chan os.Signal, 1)
 		doneCh := make(chan struct{}, 1)
-		// quoteCh := make(chan exchange.Quote)
 		errorCh := make(chan error)
 
 		signal.Notify(ws.interruptCh, os.Interrupt)
