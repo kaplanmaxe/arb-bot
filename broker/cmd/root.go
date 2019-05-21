@@ -25,6 +25,8 @@ var rootCmd = &cobra.Command{
 	Short: "Start starts the broker service",
 	Long:  `broker fetches cryptocurrency markets and potentially exposes a websocket API`,
 	Run: func(cmd *cobra.Command, args []string) {
+		initConfig()
+		// log.Fatal("Test")
 		db := mysql.NewClient(&mysql.Config{
 			Username: viper.Get("db.helgart_db_username").(string),
 			Password: viper.Get("db.helgart_db_password").(string),
@@ -127,7 +129,6 @@ func Execute() {
 }
 
 func init() {
-	cobra.OnInitialize(initConfig)
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.helgart/.broker.config.yml)")
 	rootCmd.AddCommand(versionCmd)
 }

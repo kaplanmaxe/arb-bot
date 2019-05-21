@@ -6,7 +6,6 @@ default: build
 
 # BUILD
 build-broker:
-	# @(go build -v -o ./bin/${BROKER_BIN} ./cmd/broker/main.go)
 	@(go build -v -o ./bin/${BROKER_BIN} ./broker/main.go)
 
 build: build-broker
@@ -24,7 +23,6 @@ dev-down:
 	@(docker-compose -f docker/dev/docker-compose.dev.yml down)
 
 run-broker: build-broker
-	# ./bin/${BROKER_BIN} --config ${PROJECT_ROOT}/.config.yml
 	./bin/${BROKER_BIN}
 
 run-version: build-broker
