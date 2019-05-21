@@ -13,6 +13,6 @@ script:
   - make unit-race
   - make
   - make install
-  - broker --version
+  - broker version
   - docker build -t helgart/broker .
-  - docker run -ti --rm helgart/broker broker --version
+  - docker run -ti --rm helgart/broker broker version
