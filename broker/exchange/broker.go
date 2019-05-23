@@ -56,18 +56,18 @@ type ArbProductMap map[string]struct{}
 
 // ActiveMarket represents a market to go into the ActiveMarketMap
 type ActiveMarket struct {
-	Exchange string
-	HePair   string
-	ExPair   string
-	Price    float64
+	Exchange string  `json:"exchange"`
+	HePair   string  `json:"he_pair"`
+	ExPair   string  `json:"ex_pair"`
+	Price    float64 `json:"price"`
 }
 
 // ArbMarket represents a market for arbitrage with a spread, low exchange, and high exchange
 type ArbMarket struct {
-	HePair string
-	Spread float64
-	Low    ActiveMarket
-	High   ActiveMarket
+	HePair string       `json:"he_pair"`
+	Spread float64      `json:"spread"`
+	Low    ActiveMarket `json:"low"`
+	High   ActiveMarket `json:"high"`
 }
 
 // NewArbMarket returns a new ArbMarket

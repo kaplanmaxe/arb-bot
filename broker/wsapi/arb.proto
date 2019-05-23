@@ -1,0 +1,15 @@
+syntax = "proto3";
+package wsapi;
+
+message ArbMarket {
+    string he_pair = 1;
+    double spread = 2;
+    message ActiveMarket {
+        string exchange = 1;
+        string he_pair = 2;
+        string ex_pair = 3;
+        string price = 4;
+    }
+    ActiveMarket low = 3;
+    ActiveMarket high = 4;
+}

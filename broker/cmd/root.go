@@ -8,7 +8,9 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"time"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/gorilla/websocket"
 	"github.com/kaplanmaxe/helgart/broker/api"
 	"github.com/kaplanmaxe/helgart/broker/binance"
@@ -17,17 +19,20 @@ import (
 	"github.com/kaplanmaxe/helgart/broker/exchange"
 	"github.com/kaplanmaxe/helgart/broker/kraken"
 	"github.com/kaplanmaxe/helgart/broker/storage/mysql"
+	"github.com/kaplanmaxe/helgart/broker/wsapi"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
-type websocketHandler struct {
+type websocketAPI struct {
+	broker      *exchange.Broker
 	quoteCh     chan exchange.Quote
+	arbCh       chan exchange.ArbMarket
 	errorCh     chan error
 	interruptCh chan os.Signal
 }
 
-func (ws *websocketHandler) quoteHandler(w http.ResponseWriter, r *http.Request) {
+func (ws *websocketAPI) quoteHandler(w http.ResponseWriter, r *http.Request) {
 	c, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Print("upgrade:", err)
@@ -38,10 +43,73 @@ func (ws *websocketHandler) quoteHandler(w http.ResponseWriter, r *http.Request)
 		err = c.WriteJSON(quote)
 		if err != nil {
 			fmt.Println("Closed")
-			// c.Close()
 			break
 		}
 	}
+}
+
+func (ws *websocketAPI) arbitrageHandler(w http.ResponseWriter, r *http.Request) {
+	c, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Print("upgrade:", err)
+		return
+	}
+	defer c.Close()
+	for quote := range ws.quoteCh {
+		if _, ok := ws.broker.ArbProducts[quote.HePair]; ok {
+			// TODO: investigate this bug where coinbase returns no price for MKR-BTC
+			if quote.Price == "" {
+				return
+			}
+			price, err := strconv.ParseFloat(quote.Price, 64)
+			if err != nil {
+				log.Fatal(err)
+			}
+			quote.PriceFloat = price
+			ws.broker.InsertActiveMarket(&exchange.ActiveMarket{
+				Exchange: quote.Exchange,
+				HePair:   quote.HePair,
+				ExPair:   quote.ExPair,
+				Price:    price,
+			})
+			// var arbMarket exchange.ArbMarket
+			if len(ws.broker.ActiveMarkets[quote.HePair]) > 1 {
+				pair := ws.broker.ActiveMarkets[quote.HePair]
+				low := pair[len(pair)-1]
+				high := pair[0]
+				msg, err := ws.pbMarshalArbMarket(exchange.NewArbMarket(low.HePair, low, high))
+				if err != nil {
+					// TODO: remoev
+					log.Fatal(err)
+				}
+				err = c.WriteMessage(websocket.BinaryMessage, msg)
+				if err != nil {
+					fmt.Println("Closed")
+					break
+				}
+			}
+		}
+	}
+}
+
+func (ws *websocketAPI) pbMarshalArbMarket(market *exchange.ArbMarket) ([]byte, error) {
+	pb := &wsapi.ArbMarket{
+		HePair: market.HePair,
+		Spread: market.Spread,
+		Low: &wsapi.ArbMarket_ActiveMarket{
+			Exchange: market.Low.Exchange,
+			HePair:   market.Low.HePair,
+			ExPair:   market.Low.ExPair,
+			Price:    fmt.Sprintf("%f", market.Low.Price),
+		},
+		High: &wsapi.ArbMarket_ActiveMarket{
+			Exchange: market.High.Exchange,
+			HePair:   market.High.HePair,
+			ExPair:   market.High.ExPair,
+			Price:    fmt.Sprintf("%f", market.High.Price),
+		},
+	}
+	return proto.Marshal(pb)
 }
 
 var rootCmd = &cobra.Command{
@@ -53,12 +121,14 @@ var rootCmd = &cobra.Command{
 			log.Fatalf("Can't read config: %s", err)
 			os.Exit(1)
 		}
-		ws := &websocketHandler{
+		ws := &websocketAPI{
 			quoteCh:     make(chan exchange.Quote),
+			arbCh:       make(chan exchange.ArbMarket),
 			interruptCh: make(chan os.Signal, 1),
 		}
 		go func() {
-			http.HandleFunc("/", ws.quoteHandler)
+			http.HandleFunc("/ticker", ws.quoteHandler)
+			http.HandleFunc("/arb", ws.arbitrageHandler)
 			http.ListenAndServe("localhost:8080", nil)
 		}()
 
@@ -81,13 +151,13 @@ var rootCmd = &cobra.Command{
 		signal.Notify(ws.interruptCh, os.Interrupt)
 		ctx, cancel := context.WithCancel(context.Background())
 
-		broker := exchange.NewBroker([]exchange.Exchange{
+		ws.broker = exchange.NewBroker([]exchange.Exchange{
 			kraken.NewClient(api.NewWebSocketHelper(exchange.KRAKEN), ws.quoteCh, errorCh),
 			coinbase.NewClient(api.NewWebSocketHelper(exchange.COINBASE), ws.quoteCh, errorCh),
 			binance.NewClient(api.NewWebSocketHelper(exchange.BINANCE), ws.quoteCh, errorCh),
 			bitfinex.NewClient(api.NewWebSocketHelper(exchange.BITFINEX), ws.quoteCh, errorCh),
 		}, db)
-		err = broker.Start(ctx)
+		err = ws.broker.Start(ctx)
 
 		if err != nil {
 			log.Fatal(err)
@@ -97,38 +167,15 @@ var rootCmd = &cobra.Command{
 			<-ws.interruptCh
 			log.Println("interrupt received")
 			cancel()
-			close(doneCh)
+			select {
+			// TODO: race condition. fix
+			case <-time.After(7 * time.Second):
+				close(doneCh)
+				return
+			}
 		}()
 		<-doneCh
 	},
-}
-
-func arbitrageHandler(broker *exchange.Broker, quote exchange.Quote) {
-	if _, ok := broker.ArbProducts[quote.HePair]; ok {
-		// TODO: investigate this bug where coinbase returns no price for MKR-BTC
-		if quote.Price == "" {
-			return
-		}
-		price, err := strconv.ParseFloat(quote.Price, 64)
-		if err != nil {
-			log.Fatal(err)
-		}
-		quote.PriceFloat = price
-		broker.InsertActiveMarket(&exchange.ActiveMarket{
-			Exchange: quote.Exchange,
-			HePair:   quote.HePair,
-			ExPair:   quote.ExPair,
-			Price:    price,
-		})
-		var arbMarket exchange.ArbMarket
-		if len(broker.ActiveMarkets[quote.HePair]) > 1 {
-			pair := broker.ActiveMarkets[quote.HePair]
-			low := pair[len(pair)-1]
-			high := pair[0]
-			arbMarket = *exchange.NewArbMarket(low.HePair, low, high)
-			log.Printf("Arb Market: %#v", arbMarket)
-		}
-	}
 }
 
 var cfgFile string

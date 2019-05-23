@@ -19,5 +19,28 @@ var versionCmd = &cobra.Command{
 }
 
 func init() {
+	// foo := &wsapi.ArbMarket{
+	// 	HePair: "MOCK-USD",
+	// 	Spread: 0.23,
+	// 	Low: &wsapi.ArbMarket_ActiveMarket{
+	// 		Exchange: "Kraken",
+	// 		HePair:   "MOCK-USD",
+	// 		ExPair:   "MOCK-USD",
+	// 		Price:    "123",
+	// 	},
+	// 	High: &wsapi.ArbMarket_ActiveMarket{
+	// 		Exchange: "Binance",
+	// 		HePair:   "MOCK-USD",
+	// 		ExPair:   "MOCK-USD",
+	// 		Price:    "456",
+	// 	},
+	// }
+	// b, err := proto.Marshal(foo)
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// newFoo := &wsapi.ArbMarket{}
+	// err = proto.Unmarshal(b, newFoo)
+	// log.Fatal(newFoo)
 	rootCmd.AddCommand(versionCmd)
 }

@@ -26,6 +26,12 @@
   version = "v2.2.2"
 
 [[projects]]
+  name = "github.com/golang/protobuf"
+  packages = ["proto"]
+  revision = "b5d812f8a3706043e23a9cd5babf2e5423744d30"
+  version = "v1.3.1"
+
+[[projects]]
   name = "github.com/gorilla/websocket"
   packages = ["."]
   revision = "66b9c49e59c6c48f0ffce28c2d8b8a5678502c6d"
@@ -130,6 +136,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "0b63de116a7c58f45ee945e6742e03a924a3e9244879214154eaba12a66a77d4"
+  inputs-digest = "738630fac1ebbfa5eb6c05e0171a112ae2c59b49657f6cfbf8b5f41d2b14e26a"
   solver-name = "gps-cdcl"
   solver-version = 1
