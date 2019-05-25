@@ -33,7 +33,7 @@ func NewClient(api api.WebSocketHelper, quoteCh chan<- exchange.Quote, errorCh c
 }
 
 // Start starts the api connection and listens for new ticker messages
-func (c *Client) Start(ctx context.Context, productMap exchange.ProductMap) error {
+func (c *Client) Start(ctx context.Context, productMap exchange.ProductMap, doneCh chan<- struct{}) error {
 	c.productMap = productMap[c.exchangeName]
 	err := c.GetPairs()
 	if err != nil {
@@ -47,7 +47,7 @@ func (c *Client) Start(ctx context.Context, productMap exchange.ProductMap) erro
 	if err != nil {
 		return err
 	}
-	go c.StartTickerListener(ctx)
+	go c.StartTickerListener(ctx, doneCh)
 	return nil
 }
 
@@ -69,7 +69,7 @@ func (c *Client) FormatSubscribeRequest() interface{} {
 }
 
 // StartTickerListener starts a new goroutine to listen for new ticker messages
-func (c *Client) StartTickerListener(ctx context.Context) {
+func (c *Client) StartTickerListener(ctx context.Context, doneCh chan<- struct{}) {
 cLoop:
 	for {
 		message, err := c.API.ReadMessage()
@@ -84,6 +84,7 @@ cLoop:
 			if err != nil {
 				c.errorCh <- fmt.Errorf("Error closing %s: %s", c.exchangeName, err)
 			}
+			doneCh <- struct{}{}
 			break cLoop
 		default:
 			res, err := c.ParseTickerResponse(message)

@@ -106,7 +106,7 @@ func NewBroker(exchanges []Exchange, db ProductStorage) *Broker {
 }
 
 // Start starts a new exchange engine
-func (b *Broker) Start(ctx context.Context) error {
+func (b *Broker) Start(ctx context.Context, doneCh chan<- struct{}) error {
 	err := b.buildProductMap()
 	if err != nil {
 		return fmt.Errorf("Error fetching product map: %s", err)
@@ -117,7 +117,7 @@ func (b *Broker) Start(ctx context.Context) error {
 	}
 	b.ArbProducts = arbProducts
 	for _, exchange := range b.exchanges {
-		err := exchange.Start(ctx, b.ProductMap)
+		err := exchange.Start(ctx, b.ProductMap, doneCh)
 		if err != nil {
 			return err
 		}

@@ -20,7 +20,8 @@ func TestStart(t *testing.T) {
 
 	client := binance.NewClient(mock.NewConnector(ignoreFunc), quoteCh, errorCh)
 	productMap := mock.MakeMockProductMap()
-	client.Start(ctx, productMap)
+	doneCh := make(chan struct{}, 1)
+	client.Start(ctx, productMap, doneCh)
 
 	mockResponse := []binance.TickerResponse{
 		binance.TickerResponse{

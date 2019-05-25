@@ -20,7 +20,8 @@ func TestStart(t *testing.T) {
 
 	client := coinbase.NewClient(mock.NewConnector(ignoreFunc), quoteCh, errorCh)
 	productMap := mock.MakeMockProductMap()
-	client.Start(ctx, productMap)
+	doneCh := make(chan struct{}, 1)
+	client.Start(ctx, productMap, doneCh)
 
 	mockResponse := &coinbase.TickerResponse{
 		Pair:  "MOCK-USD",

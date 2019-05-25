@@ -8,12 +8,10 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
-	"time"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/gorilla/websocket"
 	"github.com/kaplanmaxe/helgart/broker/api"
-	"github.com/kaplanmaxe/helgart/broker/binance"
 	"github.com/kaplanmaxe/helgart/broker/bitfinex"
 	"github.com/kaplanmaxe/helgart/broker/coinbase"
 	"github.com/kaplanmaxe/helgart/broker/exchange"
@@ -25,11 +23,12 @@ import (
 )
 
 type websocketAPI struct {
-	broker      *exchange.Broker
-	quoteCh     chan exchange.Quote
-	arbCh       chan exchange.ArbMarket
-	errorCh     chan error
-	interruptCh chan os.Signal
+	broker         *exchange.Broker
+	quoteCh        chan exchange.Quote
+	arbCh          chan exchange.ArbMarket
+	errorCh        chan error
+	interruptCh    chan os.Signal
+	exchangeDoneCh chan struct{}
 }
 
 func (ws *websocketAPI) quoteHandler(w http.ResponseWriter, r *http.Request) {
@@ -39,10 +38,16 @@ func (ws *websocketAPI) quoteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer c.Close()
-	for quote := range ws.quoteCh {
-		err = c.WriteJSON(quote)
-		if err != nil {
-			fmt.Println("Closed")
+	for {
+		select {
+		case quote := <-ws.quoteCh:
+			err = c.WriteJSON(quote)
+			if err != nil {
+				fmt.Println("Closed")
+				break
+			}
+		case err := <-ws.errorCh:
+			log.Println(err)
 			break
 		}
 	}
@@ -122,9 +127,11 @@ var rootCmd = &cobra.Command{
 			os.Exit(1)
 		}
 		ws := &websocketAPI{
-			quoteCh:     make(chan exchange.Quote),
-			arbCh:       make(chan exchange.ArbMarket),
-			interruptCh: make(chan os.Signal, 1),
+			quoteCh:        make(chan exchange.Quote),
+			arbCh:          make(chan exchange.ArbMarket),
+			errorCh:        make(chan error),
+			interruptCh:    make(chan os.Signal, 1),
+			exchangeDoneCh: make(chan struct{}),
 		}
 		go func() {
 			http.HandleFunc("/ticker", ws.quoteHandler)
@@ -146,18 +153,17 @@ var rootCmd = &cobra.Command{
 
 		log.Print("Starting quote server")
 		doneCh := make(chan struct{}, 1)
-		errorCh := make(chan error)
 
 		signal.Notify(ws.interruptCh, os.Interrupt)
 		ctx, cancel := context.WithCancel(context.Background())
-
-		ws.broker = exchange.NewBroker([]exchange.Exchange{
-			kraken.NewClient(api.NewWebSocketHelper(exchange.KRAKEN), ws.quoteCh, errorCh),
-			coinbase.NewClient(api.NewWebSocketHelper(exchange.COINBASE), ws.quoteCh, errorCh),
-			binance.NewClient(api.NewWebSocketHelper(exchange.BINANCE), ws.quoteCh, errorCh),
-			bitfinex.NewClient(api.NewWebSocketHelper(exchange.BITFINEX), ws.quoteCh, errorCh),
-		}, db)
-		err = ws.broker.Start(ctx)
+		exchanges := []exchange.Exchange{
+			// binance.NewClient(api.NewWebSocketHelper(exchange.BINANCE), ws.quoteCh, ws.errorCh),
+			kraken.NewClient(api.NewWebSocketHelper(exchange.KRAKEN), ws.quoteCh, ws.errorCh),
+			coinbase.NewClient(api.NewWebSocketHelper(exchange.COINBASE), ws.quoteCh, ws.errorCh),
+			bitfinex.NewClient(api.NewWebSocketHelper(exchange.BITFINEX), ws.quoteCh, ws.errorCh),
+		}
+		ws.broker = exchange.NewBroker(exchanges, db)
+		err = ws.broker.Start(ctx, ws.exchangeDoneCh)
 
 		if err != nil {
 			log.Fatal(err)
@@ -167,12 +173,20 @@ var rootCmd = &cobra.Command{
 			<-ws.interruptCh
 			log.Println("interrupt received")
 			cancel()
-			select {
-			// TODO: race condition. fix
-			case <-time.After(7 * time.Second):
-				close(doneCh)
-				return
+			canceledExchanges := 0
+		interrupt:
+			for {
+				select {
+				// TODO: race condition. fix
+				case <-ws.exchangeDoneCh:
+					canceledExchanges++
+					if canceledExchanges == len(exchanges) {
+						close(doneCh)
+						break interrupt
+					}
+				}
 			}
+
 		}()
 		<-doneCh
 	},

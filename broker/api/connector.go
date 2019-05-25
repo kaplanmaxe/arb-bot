@@ -38,7 +38,6 @@ func NewWebSocketHelper(exchangeName string) WebSocketHelper {
 // Connect connects to the websocket api and stores the connection
 func (s *Source) Connect(url *url.URL) error {
 	c, _, err := websocket.DefaultDialer.Dial(url.String(), nil)
-
 	s.conn = c
 
 	if err != nil {

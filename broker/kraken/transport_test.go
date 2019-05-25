@@ -24,7 +24,8 @@ func TestStart(t *testing.T) {
 	ctx := context.TODO()
 	client := kraken.NewClient(mock.NewConnector(ignoreFunc), quoteCh, errorCh)
 	productMap := mock.MakeMockProductMap()
-	client.Start(ctx, productMap)
+	doneCh := make(chan struct{}, 1)
+	client.Start(ctx, productMap, doneCh)
 	for i := 0; i < len(client.Pairs)+1; i++ {
 		var channelID int
 		if i == 0 {
