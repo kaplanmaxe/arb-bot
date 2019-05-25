@@ -25,6 +25,8 @@ services:
     links:
       - db:db
       - cache:cache
+    ports:
+      - "3000:8080"
     volumes:
         - ../../:/go/src/github.com/kaplanmaxe/helgart
     container_name: helgart_broker_dev

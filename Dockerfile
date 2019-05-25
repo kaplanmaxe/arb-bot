@@ -28,5 +28,7 @@ RUN apk update \
 # Retrieve the binary from the previous stage
 COPY --from=builder /usr/bin/broker /bin/
 
+EXPOSE 8080
+
 # Set the binary as the entrypoint of the container
 # CMD [ "helgart-broker" ]

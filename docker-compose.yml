@@ -19,6 +19,8 @@ services:
       dockerfile: Dockerfile
     links:
       - db:db
+    ports:
+      - "3000:8080"
     volumes:
       - ./.config.docker.yml:/home/.config.yml
     container_name: helgart_broker
