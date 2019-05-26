@@ -8,9 +8,11 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"os"
 
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/go-yaml/yaml"
+	"github.com/spf13/viper"
 )
 
 type db struct {
@@ -189,13 +191,25 @@ func (c *client) insertProducts(exchange string, products []apiProduct) error {
 
 func main() {
 	c := &client{}
+	viper.SetConfigFile("./.config.yml")
+	if err := viper.ReadInConfig(); err != nil {
+		log.Fatalf("Can't read config: %s", err)
+		os.Exit(1)
+	}
 	err := c.getConfig()
-
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	err = c.connectDB(fmt.Sprintf("%s:%s@tcp(%s:%d)/%s", c.cfg.DB.Username, c.cfg.DB.Password, c.cfg.DB.Host, c.cfg.DB.Port, c.cfg.DB.DBName))
+	err = c.connectDB(
+		fmt.Sprintf("%s:%s@tcp(%s:%d)/%s",
+			viper.Get("db.helgart_db_username").(string),
+			viper.Get("db.helgart_db_password").(string),
+			viper.Get("db.helgart_db_host").(string),
+			viper.Get("db.helgart_db_port").(int),
+			viper.Get("db.helgart_db_name").(string),
+		),
+	)
 
 	defer c.db.Close()
 

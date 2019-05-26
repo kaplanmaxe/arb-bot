@@ -24,7 +24,7 @@ services:
     ports:
       - "80:80"
     volumes:
-      - ./nginx/broker/dev/:/etc/nginx/conf.d/
+      - ./nginx/broker/prod/:/etc/nginx/conf.d/
 
   broker:
     command: broker --config /home/.config.yml
