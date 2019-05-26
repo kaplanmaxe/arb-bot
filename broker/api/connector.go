@@ -16,6 +16,7 @@ type WebSocketHelper interface {
 	SendSubscribeRequest(interface{}) error
 	SendSubscribeRequestWithResponse(context.Context, interface{}) ([]byte, error)
 	WriteMessage([]byte) error
+	WritePongMessage() error
 	ReadMessage() ([]byte, error)
 	Close() error
 }
@@ -79,6 +80,15 @@ func (s *Source) SendSubscribeRequestWithResponse(ctx context.Context, req inter
 // WriteMessage writes a message to the websocket connection
 func (s *Source) WriteMessage(msg []byte) error {
 	err := s.conn.WriteMessage(websocket.TextMessage, msg)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// WritePongMessage sends a ping message to the server
+func (s *Source) WritePongMessage() error {
+	err := s.conn.WriteMessage(websocket.PongMessage, nil)
 	if err != nil {
 		return err
 	}

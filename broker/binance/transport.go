@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/url"
+	"time"
 
 	"github.com/kaplanmaxe/helgart/broker/api"
 	"github.com/kaplanmaxe/helgart/broker/exchange"
@@ -34,7 +36,12 @@ func (c *Client) Start(ctx context.Context, productMap exchange.ProductMap, done
 	c.productMap = productMap[c.exchangeName]
 	err := c.API.Connect(c.GetURL())
 	if err != nil {
-		return err
+		log.Println("Retrying binance connection")
+		// TODO: binance api often returns bad handshake errors. We try again until we connect
+		// but this should be removed eventually or a check should be put in place that it doesn't
+		// try to connect n times
+		return c.Start(ctx, productMap, doneCh)
+		// return err
 	}
 	go c.StartTickerListener(ctx, doneCh)
 	return nil
@@ -42,6 +49,7 @@ func (c *Client) Start(ctx context.Context, productMap exchange.ProductMap, done
 
 // StartTickerListener starts a new goroutine to listen for new ticker messages
 func (c *Client) StartTickerListener(ctx context.Context, doneCh chan<- struct{}) {
+	ticker := time.NewTicker(time.Minute * 3)
 cLoop:
 	for {
 		message, err := c.API.ReadMessage()
@@ -58,6 +66,14 @@ cLoop:
 			}
 			doneCh <- struct{}{}
 			break cLoop
+		case <-ticker.C:
+			err := c.API.WritePongMessage()
+			if err != nil {
+				log.Println(err)
+				c.errorCh <- fmt.Errorf("Error sending pong message for %s: %s", c.exchangeName, err)
+			} else {
+				log.Printf("Pong for %s sent successfully", c.exchangeName)
+			}
 		default:
 			res, err := c.ParseTickerResponse(message)
 			if err != nil {

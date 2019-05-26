@@ -91,6 +91,15 @@ func (m *Connector) WriteMessage(msg []byte) error {
 	return nil
 }
 
+// WritePongMessage sends a ping message to the server
+func (m *Connector) WritePongMessage() error {
+	err := m.conn.WriteMessage(websocket.PongMessage, nil)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 // StartTickerListener starts a listener in a new goroutine for any new quotes
 // This should be overridden by each gateway
 func (m *Connector) StartTickerListener(ctx context.Context) {

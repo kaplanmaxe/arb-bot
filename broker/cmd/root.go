@@ -12,6 +12,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/gorilla/websocket"
 	"github.com/kaplanmaxe/helgart/broker/api"
+	"github.com/kaplanmaxe/helgart/broker/binance"
 	"github.com/kaplanmaxe/helgart/broker/bitfinex"
 	"github.com/kaplanmaxe/helgart/broker/coinbase"
 	"github.com/kaplanmaxe/helgart/broker/exchange"
@@ -25,7 +26,7 @@ import (
 type websocketAPI struct {
 	broker         *exchange.Broker
 	quoteCh        chan exchange.Quote
-	arbCh          chan exchange.ArbMarket
+	arbCh          chan *exchange.ArbMarket
 	errorCh        chan error
 	interruptCh    chan os.Signal
 	exchangeDoneCh chan struct{}
@@ -60,41 +61,53 @@ func (ws *websocketAPI) arbitrageHandler(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	defer c.Close()
-	for quote := range ws.quoteCh {
-		if _, ok := ws.broker.ArbProducts[quote.HePair]; ok {
-			// TODO: investigate this bug where coinbase returns no price for MKR-BTC
-			if quote.Price == "" {
-				return
-			}
-			price, err := strconv.ParseFloat(quote.Price, 64)
-			if err != nil {
-				log.Fatal(err)
-			}
-			quote.PriceFloat = price
-			ws.broker.InsertActiveMarket(&exchange.ActiveMarket{
-				Exchange: quote.Exchange,
-				HePair:   quote.HePair,
-				ExPair:   quote.ExPair,
-				Price:    price,
-			})
-			// var arbMarket exchange.ArbMarket
-			if len(ws.broker.ActiveMarkets[quote.HePair]) > 1 {
-				pair := ws.broker.ActiveMarkets[quote.HePair]
-				low := pair[len(pair)-1]
-				high := pair[0]
-				msg, err := ws.pbMarshalArbMarket(exchange.NewArbMarket(low.HePair, low, high))
-				if err != nil {
-					// TODO: remoev
-					log.Fatal(err)
-				}
-				err = c.WriteMessage(websocket.BinaryMessage, msg)
-				if err != nil {
-					fmt.Println("Closed")
-					break
-				}
-			}
+	for market := range ws.arbCh {
+		msg, err := ws.pbMarshalArbMarket(market)
+		if err != nil {
+			// TODO: remoev
+			log.Fatal(err)
+		}
+		err = c.WriteMessage(websocket.BinaryMessage, msg)
+		if err != nil {
+			fmt.Println("Closed")
+			break
 		}
 	}
+	// for quote := range ws.quoteCh {
+	// 	if _, ok := ws.broker.ArbProducts[quote.HePair]; ok {
+	// 		// TODO: investigate this bug where coinbase returns no price for MKR-BTC
+	// 		if quote.Price == "" {
+	// 			return
+	// 		}
+	// 		price, err := strconv.ParseFloat(quote.Price, 64)
+	// 		if err != nil {
+	// 			log.Fatal(err)
+	// 		}
+	// 		quote.PriceFloat = price
+	// 		ws.broker.InsertActiveMarket(&exchange.ActiveMarket{
+	// 			Exchange: quote.Exchange,
+	// 			HePair:   quote.HePair,
+	// 			ExPair:   quote.ExPair,
+	// 			Price:    price,
+	// 		})
+	// 		// var arbMarket exchange.ArbMarket
+	// 		if len(ws.broker.ActiveMarkets[quote.HePair]) > 1 {
+	// 			pair := ws.broker.ActiveMarkets[quote.HePair]
+	// 			low := pair[len(pair)-1]
+	// 			high := pair[0]
+	// msg, err := ws.pbMarshalArbMarket(exchange.NewArbMarket(low.HePair, low, high))
+	// if err != nil {
+	// 	// TODO: remoev
+	// 	log.Fatal(err)
+	// }
+	// err = c.WriteMessage(websocket.BinaryMessage, msg)
+	// if err != nil {
+	// 	fmt.Println("Closed")
+	// 	break
+	// }
+	// 		}
+	// 	}
+	// }
 }
 
 func (ws *websocketAPI) pbMarshalArbMarket(market *exchange.ArbMarket) ([]byte, error) {
@@ -128,7 +141,7 @@ var rootCmd = &cobra.Command{
 		}
 		ws := &websocketAPI{
 			quoteCh:        make(chan exchange.Quote),
-			arbCh:          make(chan exchange.ArbMarket),
+			arbCh:          make(chan *exchange.ArbMarket),
 			errorCh:        make(chan error),
 			interruptCh:    make(chan os.Signal, 1),
 			exchangeDoneCh: make(chan struct{}),
@@ -136,7 +149,7 @@ var rootCmd = &cobra.Command{
 		go func() {
 			http.HandleFunc("/ticker", ws.quoteHandler)
 			http.HandleFunc("/arb", ws.arbitrageHandler)
-			http.ListenAndServe("0.0.0.0:8080", nil)
+			http.ListenAndServe(fmt.Sprintf("%s:%d", viper.Get("api.host"), viper.Get("api.port")), nil)
 		}()
 
 		db := mysql.NewClient(&mysql.Config{
@@ -153,11 +166,10 @@ var rootCmd = &cobra.Command{
 
 		log.Print("Starting quote server")
 		doneCh := make(chan struct{}, 1)
-
 		signal.Notify(ws.interruptCh, os.Interrupt)
 		ctx, cancel := context.WithCancel(context.Background())
 		exchanges := []exchange.Exchange{
-			// binance.NewClient(api.NewWebSocketHelper(exchange.BINANCE), ws.quoteCh, ws.errorCh),
+			binance.NewClient(api.NewWebSocketHelper(exchange.BINANCE), ws.quoteCh, ws.errorCh),
 			kraken.NewClient(api.NewWebSocketHelper(exchange.KRAKEN), ws.quoteCh, ws.errorCh),
 			coinbase.NewClient(api.NewWebSocketHelper(exchange.COINBASE), ws.quoteCh, ws.errorCh),
 			bitfinex.NewClient(api.NewWebSocketHelper(exchange.BITFINEX), ws.quoteCh, ws.errorCh),
@@ -169,6 +181,35 @@ var rootCmd = &cobra.Command{
 			log.Fatal(err)
 		}
 
+		// quoteHandler
+		for quote := range ws.quoteCh {
+			if _, ok := ws.broker.ArbProducts[quote.HePair]; ok {
+				// TODO: investigate this bug where coinbase returns no price for MKR-BTC
+				if quote.Price == "" {
+					continue
+				}
+				price, err := strconv.ParseFloat(quote.Price, 64)
+				if err != nil {
+					log.Fatal(err)
+				}
+				quote.PriceFloat = price
+				ws.broker.InsertActiveMarket(&exchange.ActiveMarket{
+					Exchange: quote.Exchange,
+					HePair:   quote.HePair,
+					ExPair:   quote.ExPair,
+					Price:    price,
+				})
+				// var arbMarket exchange.ArbMarket
+				if len(ws.broker.ActiveMarkets[quote.HePair]) > 1 {
+					pair := ws.broker.ActiveMarkets[quote.HePair]
+					low := pair[len(pair)-1]
+					high := pair[0]
+					ws.arbCh <- exchange.NewArbMarket(low.HePair, low, high)
+				}
+			}
+		}
+
+		// interrupt handler
 		go func() {
 			<-ws.interruptCh
 			log.Println("interrupt received")
@@ -177,7 +218,6 @@ var rootCmd = &cobra.Command{
 		interrupt:
 			for {
 				select {
-				// TODO: race condition. fix
 				case <-ws.exchangeDoneCh:
 					canceledExchanges++
 					if canceledExchanges == len(exchanges) {
