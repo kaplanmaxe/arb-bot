@@ -11,12 +11,20 @@ services:
       MYSQL_ROOT_PASSWORD: example
     volumes:
       - helgart_db:/var/lib/mysql
-  cache:
-    container_name: helgart_cache
-    image: redis:5.0.5-alpine
-    ports:
-      - "6350:6379"
+
+  nginx:
+    build:
+      dockerfile: Dockerfile
+      context: .
+    container_name: helgart_nginx
+    image: helgart/nginx-dev:0.0.1
     restart: always
+    links:
+      - broker-dev:broker-dev
+    ports:
+      - "8000:80"
+    volumes:
+      - ./nginx/broker/dev/:/etc/nginx/conf.d/
 
   broker-dev:
     build:
@@ -24,7 +32,6 @@ services:
       dockerfile: Dockerfile
     links:
       - db:db
-      - cache:cache
     ports:
       - "3000:8080"
     volumes:

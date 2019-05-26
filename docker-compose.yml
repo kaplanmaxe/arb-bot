@@ -12,6 +12,20 @@ services:
     volumes:
       - helgart_db:/var/lib/mysql
 
+  nginx:
+    build:
+      dockerfile: Dockerfile
+      context: ./nginx/broker/prod
+    container_name: helgart_nginx
+    image: helgart/nginx:0.0.1
+    restart: always
+    links:
+      - broker:broker
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/broker/dev/:/etc/nginx/conf.d/
+
   broker:
     command: broker --config /home/.config.yml
     build:

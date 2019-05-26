@@ -39,6 +39,10 @@ broker-logs:
 down:
 	@(docker-compose down)
 
+# DOCKER
+build-nginx:
+	@(docker build -t helgart/nginx:0.0.1 nginx/broker/dev)
+
 # TEST
 lint:
 	@(golint --set_exit_status ${FILES})
@@ -54,4 +58,4 @@ test: lint unit unit-race
 mysql:
 	@(mysql -u root -h 0.0.0.0 -P 33104 -p)
 
-.PHONY: build build-broker dev-up dev-down run run-version run-broker run run-race up broker-logs down lint unit unit-race test mysql
+.PHONY: build build-broker dev-up dev-down run run-version run-broker run run-race up broker-logs down build-nginx lint unit unit-race test mysql

@@ -7,7 +7,6 @@ ADD ./ /go/src/github.com/kaplanmaxe/helgart
 RUN apk add --no-cache --update alpine-sdk make && \
   cd /go/src/github.com/kaplanmaxe/helgart && \
   make install && \
-  ls ./bin && \
   mv /go/bin/broker /usr/bin/
 
 # Create the second stage with the most basic that we need - a 
