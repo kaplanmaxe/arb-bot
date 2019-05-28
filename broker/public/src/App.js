@@ -17,7 +17,13 @@ class App extends React.Component {
   }
 
   componentDidMount() {
-    this.socket = new WebSocket('ws://localhost:8000/arb');
+    let url;
+    if (process.env.NODE_ENV == 'production') {
+      url = 'ws://api-public.helgart.com/arb';
+    } else {
+      url = 'ws://localhost:8000/arb';
+    }
+    this.socket = new WebSocket(url);
     this.socket.binaryType = 'arraybuffer'
   
     // Listen for messages
