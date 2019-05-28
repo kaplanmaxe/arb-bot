@@ -17,6 +17,7 @@
     "protobuf:compile": "pbjs -t static-module -w commonjs -o public/arb.js ../wsapi/arb.proto",
     "protobuf:build": "yarn protobuf:compile && browserify public/arb.js --standalone protobuf -o public/bundle.js"
   },
+  "homepage" : "http://www.helgart.com",
   "eslintConfig": {
     "extends": "react-app"
   },
