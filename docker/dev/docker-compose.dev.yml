@@ -25,6 +25,7 @@ services:
       - "8000:80"
     volumes:
       - ./nginx/broker/dev/:/etc/nginx/conf.d/
+      - ../../broker/public/:/usr/share/nginx/html/
 
   broker-dev:
     build:
@@ -32,8 +33,6 @@ services:
       dockerfile: Dockerfile
     links:
       - db:db
-    ports:
-      - "3000:8080"
     volumes:
         - ../../:/go/src/github.com/kaplanmaxe/helgart
     container_name: helgart_broker_dev

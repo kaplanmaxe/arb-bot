@@ -15,7 +15,7 @@ install:
 	@(go install github.com/kaplanmaxe/helgart/broker)
 
 # RUN
-dev-up:
+dev-up: build-nginx-dev
 	@(docker-compose -f docker/dev/docker-compose.dev.yml up -d)
 	@(docker logs --follow helgart_broker_dev)
 
@@ -43,6 +43,9 @@ down:
 build-nginx:
 	@(docker build -t helgart/nginx:0.0.1 nginx/broker/dev)
 
+build-nginx-dev:
+	@(docker build -t helgart/nginx-dev:0.0.1 nginx/broker/dev)
+
 # TEST
 lint:
 	@(golint --set_exit_status ${FILES})
@@ -58,4 +61,10 @@ test: lint unit unit-race
 mysql:
 	@(mysql -u root -h 0.0.0.0 -P 33104 -p)
 
-.PHONY: build build-broker dev-up dev-down run run-version run-broker run run-race up broker-logs down build-nginx lint unit unit-race test mysql
+# PROTO
+proto-js:
+	# @(protoc --proto_path=broker/wsapi/ --js_out=library=gen/arb,binary:broker/public/js/ broker/wsapi/arb.proto)
+	@(pbjs -t static-module -w commonjs -o broker/public/js/gen/arb.js broker/wsapi/arb.proto)
+	@(browserify broker/public/js/gen/arb.js -o broker/public/js/bundle.js)
+
+.PHONY: build build-broker dev-up dev-down run run-version run-broker run run-race up broker-logs down build-nginx lint unit unit-race test mysql proto-js
