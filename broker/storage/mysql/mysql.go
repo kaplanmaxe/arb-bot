@@ -69,7 +69,7 @@ func (c *Client) FetchAllProducts() ([]exchange.Product, error) {
 // FetchArbProducts fetches all products that have more than one market to arb
 func (c *Client) FetchArbProducts() (exchange.ArbProductMap, error) {
 	products := make(exchange.ArbProductMap)
-	results, err := c.DB.Query("SELECT ex_pair FROM products GROUP BY ex_pair HAVING COUNT(ex_pair) > 1;")
+	results, err := c.DB.Query("SELECT he_base FROM products GROUP BY he_base HAVING COUNT(he_base) > 1;")
 
 	if err != nil {
 		return products, fmt.Errorf("Error getting products: %s", err)

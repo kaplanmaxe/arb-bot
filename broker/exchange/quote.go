@@ -9,10 +9,8 @@ type Quote struct {
 	ExQuote  string `json:"ex_quote"`
 	HeBase   string `json:"he_base"`
 	HeQuote  string `json:"he_quote"`
-	// Price      string  `json:"price"` // TODO: remove
-	Bid        string  `json:"bid"`
-	Ask        string  `json:"ask"`
-	PriceFloat float64 `json:"price_float,omitempty"` // price represented as a float
+	Bid      string `json:"bid"`
+	Ask      string `json:"ask"`
 }
 
 // NewExchangeQuote returns a new exchange quote struct

@@ -31,6 +31,10 @@ type websocketAPI struct {
 	exchangeDoneCh chan struct{}
 }
 
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool { return true }, // allow for browsers to connect
+}
+
 func (ws *websocketAPI) quoteHandler(w http.ResponseWriter, r *http.Request) {
 	c, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -148,40 +152,35 @@ var rootCmd = &cobra.Command{
 
 		// quoteHandler
 		for quote := range ws.quoteCh {
-			if _, ok := ws.broker.ArbProducts[quote.HePair]; ok {
+			if _, ok := ws.broker.ArbProducts[quote.HeBase]; ok {
 				// TODO: investigate this bug where coinbase returns no price for MKR-BTC
 				if quote.Ask == "" || quote.Bid == "" {
-					log.Fatal("NOW1", quote)
 					continue
 				}
-				// price, err := strconv.ParseFloat(quote.Price, 64)
-				// if err != nil {
-				// 	log.Fatal(err)
-				// }
 				bid, err := strconv.ParseFloat(quote.Bid, 64)
 				if err != nil {
-					// TODO: remove
-					log.Fatal(quote, err)
+					ws.errorCh <- err
 				}
 				ask, err := strconv.ParseFloat(quote.Ask, 64)
 				if err != nil {
-					log.Fatal(err)
+					ws.errorCh <- err
 				}
 				// quote.PriceFloat = price
 				ws.broker.InsertActiveMarket(&exchange.ActiveMarket{
 					Exchange: quote.Exchange,
 					HePair:   quote.HePair,
 					ExPair:   quote.ExPair,
+					HeBase:   quote.HeBase,
+					HeQuote:  quote.HeQuote,
 					Bid:      bid,
 					Ask:      ask,
-					// Price:    price,
 				})
 				// var arbMarket exchange.ArbMarket
-				if len(ws.broker.ActiveMarkets[quote.HePair].Bids) > 1 && len(ws.broker.ActiveMarkets[quote.HePair].Asks) > 1 {
-					pair := ws.broker.ActiveMarkets[quote.HePair]
-					low := pair.Bids[0]
-					high := pair.Asks[0]
-					ws.arbCh <- exchange.NewArbMarket(pair.HePair, low, high)
+				if len(ws.broker.ActiveMarkets[quote.HeBase].Bids) > 1 && len(ws.broker.ActiveMarkets[quote.HeBase].Asks) > 1 {
+					pair := ws.broker.ActiveMarkets[quote.HeBase]
+					high := pair.Bids[0] // Sell at highest price
+					low := pair.Asks[0]  // Buy at lowest price
+					ws.arbCh <- exchange.NewArbMarket(quote.HeBase, low, high)
 				}
 			}
 		}
@@ -234,8 +233,4 @@ func initConfig() {
 		viper.SetConfigName("broker.config")
 		viper.AddConfigPath("$HOME/.helgart")
 	}
-}
-
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true }, // allow for browsers to connect
 }
