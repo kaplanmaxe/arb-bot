@@ -46,8 +46,9 @@ type subscribeRequest struct {
 // 	"last_size":"19.17919361"
 // }
 type TickerResponse struct {
-	Pair  string `json:"product_id"`
-	Price string `json:"best_ask"`
+	Pair string `json:"product_id"`
+	Ask  string `json:"best_ask"`
+	Bid  string `json:"best_bid"`
 }
 
 type productsResponse struct {

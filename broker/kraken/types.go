@@ -39,7 +39,8 @@ type SubscribeRequest struct {
 type TickerResponse struct {
 	ChannelID int
 	Pair      string
-	Price     string
+	Bid       string
+	Ask       string
 }
 
 // SubscriptionResponse is a response after subscribing to an event
@@ -57,6 +58,7 @@ type channelPairMap map[int]string
 
 type tickerResponse struct {
 	Ask []interface{} `json:"a"`
+	Bid []interface{} `json:"b"`
 }
 
 // UnmarshalJSON overrides UnmarshalJSON due to Kraken's weird output
@@ -83,7 +85,8 @@ func (s *TickerResponse) UnmarshalJSON(msg []byte) error {
 	if err != nil {
 		return fmt.Errorf("Error unmarshalling kraken TickerResponse: %s", err)
 	}
-	s.Price = tickerInfo.Ask[0].(string)
+	s.Ask = tickerInfo.Ask[0].(string)
+	s.Bid = tickerInfo.Bid[0].(string)
 	return nil
 }
 

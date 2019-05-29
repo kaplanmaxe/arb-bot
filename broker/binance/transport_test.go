@@ -27,7 +27,7 @@ func TestStart(t *testing.T) {
 		binance.TickerResponse{
 			AskQuantity: "123",
 			Pair:        "MOCKUSD",
-			Price:       "1000000.00",
+			Bid:         "1000000.00",
 		},
 	}
 	msg, err := json.Marshal(mockResponse)
@@ -42,7 +42,7 @@ listener:
 	for {
 		select {
 		case quote := <-quoteCh:
-			if mockResponse[0].Pair != quote.ExPair || mockResponse[0].Price != quote.Price {
+			if mockResponse[0].Pair != quote.ExPair || mockResponse[0].Bid != quote.Bid {
 				t.Fatalf("Expecting response %#v but got %#v", mockResponse, quote)
 			}
 			break listener

@@ -18,6 +18,13 @@ const (
 	BITFINEX = "bitfinex"
 )
 
+const (
+	// BIDS represents the bids side of the book
+	BIDS = iota
+	// ASKS represemts the asks side of the book
+	ASKS
+)
+
 // ProductStorage is an interface to fetch products from some persistent storage (mysql, etc)
 // This is intended to normalize products (pairs) where some exchanges might list IOTA-USD as IOT-USD
 type ProductStorage interface {
@@ -56,22 +63,24 @@ type ArbProductMap map[string]struct{}
 
 // ActiveMarket represents a market to go into the ActiveMarketMap
 type ActiveMarket struct {
-	Exchange string  `json:"exchange"`
-	HePair   string  `json:"he_pair"`
-	ExPair   string  `json:"ex_pair"`
-	Price    float64 `json:"price"`
+	Exchange string `json:"exchange"`
+	HePair   string `json:"he_pair"`
+	ExPair   string `json:"ex_pair"`
+	// Price    float64 `json:"price"`
+	Bid float64 `json:"bid"`
+	Ask float64 `json:"ask"`
 }
 
 // ArbMarket represents a market for arbitrage with a spread, low exchange, and high exchange
 type ArbMarket struct {
-	HePair string       `json:"he_pair"`
-	Spread float64      `json:"spread"`
-	Low    ActiveMarket `json:"low"`
-	High   ActiveMarket `json:"high"`
+	HePair string     `json:"he_pair"`
+	Spread float64    `json:"spread"`
+	Low    MarketSide `json:"low"`
+	High   MarketSide `json:"high"`
 }
 
 // NewArbMarket returns a new ArbMarket
-func NewArbMarket(hePair string, low, high ActiveMarket) *ArbMarket {
+func NewArbMarket(hePair string, low, high MarketSide) *ArbMarket {
 	spread := ((high.Price - low.Price) / low.Price) * 100
 	return &ArbMarket{
 		HePair: hePair,
@@ -81,9 +90,35 @@ func NewArbMarket(hePair string, low, high ActiveMarket) *ArbMarket {
 	}
 }
 
+// Market represents a market in the ActiveMarketMap for a given pair
+type Market struct {
+	HePair string       `json:"he_pair"`
+	Bids   []MarketSide `json:"bids"`
+	Asks   []MarketSide `json:"asks"`
+}
+
+// MarketSide is a quote from an exchange
+type MarketSide struct {
+	Exchange string  `json:"exchange"`
+	Price    float64 `json:"price"`
+	ExPair   string  `json:"ex_pair"`
+}
+
 // ActiveMarketMap is a map representing markets broker is pulling from and receiving data from
 // the key will be the HePair and the value will be a Quote
-type ActiveMarketMap map[string][]ActiveMarket
+// 	{
+// 		"REP-USD": {
+// 		"HePair": "REP-USD",
+// 		"Bids": [
+// 			{"exchange": "Coinbase", "price": 123, "ExPair": "REP-USD"},
+// 			{"exchange": "Kraken", "price": 456, "ExPair": "REP-USD"},
+// 		],
+// 		"Asks": [
+// 			{"exchange": "Coinbase", "price": 123, "ExPair": "REP-USD"},
+// 			{"exchange": "Kraken", "price": 456, "ExPair": "REP-USD"},
+// 		]}
+// 	}
+type ActiveMarketMap map[string]*Market
 
 // Broker is a struct representing a group of exchanges
 type Broker struct {
@@ -150,31 +185,52 @@ func (b *Broker) buildProductMap() error {
 	return nil
 }
 
+func (b *Broker) insertMarketIntoMarketSide(side int, market *ActiveMarket) {
+	if side == BIDS {
+		for key, val := range b.ActiveMarkets[market.HePair].Bids {
+			if market.Exchange == val.Exchange {
+				b.ActiveMarkets[market.HePair].Bids[key].Price = market.Bid
+				return
+			}
+		}
+		b.ActiveMarkets[market.HePair].Bids = append(b.ActiveMarkets[market.HePair].Bids, MarketSide{
+			Exchange: market.Exchange,
+			Price:    market.Bid,
+			ExPair:   market.ExPair,
+		})
+	} else if side == ASKS {
+		for key, val := range b.ActiveMarkets[market.HePair].Asks {
+			if market.Exchange == val.Exchange {
+				b.ActiveMarkets[market.HePair].Asks[key].Price = market.Ask
+				return
+			}
+		}
+		b.ActiveMarkets[market.HePair].Asks = append(b.ActiveMarkets[market.HePair].Asks, MarketSide{
+			Exchange: market.Exchange,
+			Price:    market.Ask,
+			ExPair:   market.ExPair,
+		})
+	}
+}
+
 // InsertActiveMarket inserts a quote into the ActiveMarketMap
 func (b *Broker) InsertActiveMarket(market *ActiveMarket) {
 	// We check if the pair is already in the active market map
 	if _, ok := b.ActiveMarkets[market.HePair]; !ok {
 		// If not intialize slice
-		b.ActiveMarkets[market.HePair] = []ActiveMarket{}
-	}
-	// We now check if we have an exchange price in the active market map for the given pair
-	// and get the key in the slice
-	exchangeKey := -1
-	for key, val := range b.ActiveMarkets[market.HePair] {
-		if val.Exchange == market.Exchange {
-			exchangeKey = key
+		b.ActiveMarkets[market.HePair] = &Market{
+			HePair: market.HePair,
 		}
 	}
-	// If exchange price isn't in the active market map for the exchange, add it
-	if exchangeKey == -1 {
-		b.ActiveMarkets[market.HePair] = append(b.ActiveMarkets[market.HePair], *market)
-	} else {
-		// If it's already there, simply update the price
-		b.ActiveMarkets[market.HePair][exchangeKey].Price = market.Price
-	}
+	b.insertMarketIntoMarketSide(BIDS, market)
+	b.insertMarketIntoMarketSide(ASKS, market)
 
 	// We sort here to easily find the high and low price
-	sort.Slice(b.ActiveMarkets[market.HePair], func(i, j int) bool {
-		return b.ActiveMarkets[market.HePair][i].Price > b.ActiveMarkets[market.HePair][j].Price
+	sort.Slice(b.ActiveMarkets[market.HePair].Bids, func(i, j int) bool {
+		return b.ActiveMarkets[market.HePair].Bids[i].Price > b.ActiveMarkets[market.HePair].Bids[j].Price
+	})
+
+	sort.Slice(b.ActiveMarkets[market.HePair].Asks, func(i, j int) bool {
+		return b.ActiveMarkets[market.HePair].Asks[i].Price < b.ActiveMarkets[market.HePair].Asks[j].Price
 	})
 }

@@ -106,7 +106,8 @@ func (c *Client) ParseTickerResponse(msg []byte) ([]exchange.Quote, error) {
 			product := c.productMap[val.Pair]
 			quotes = append(quotes, exchange.Quote{
 				Exchange: c.exchangeName,
-				Price:    val.Price,
+				Bid:      val.Bid,
+				Ask:      val.Ask,
 				ExPair:   product.ExPair,
 				HePair:   product.HePair,
 				ExBase:   product.ExBase,

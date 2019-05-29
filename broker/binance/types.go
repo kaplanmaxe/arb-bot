@@ -30,7 +30,9 @@ type TickerResponse struct {
 	// We need this in order to properly set the price. Sometimes during deserialization
 	// Price will be set to `json:"A"` if we don't also deserialize AskQuantity
 	AskQuantity string `json:"A"`
-	Price       string `json:"a"`
+	Ask         string `json:"a"`
+	BidQuantity string `json:"B"`
+	Bid         string `json:"b"`
 	Pair        string `json:"s"`
 }
 

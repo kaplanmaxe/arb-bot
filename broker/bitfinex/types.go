@@ -24,7 +24,8 @@ type SubscriptionResponse struct {
 type TickerResponse struct {
 	ChannelID int
 	Pair      string
-	Price     string
+	Bid       string
+	Ask       string
 }
 
 // UnmarshalJSON overrides UnmarshalJSON due to Bitfinex's weird output
@@ -41,7 +42,8 @@ func (s *TickerResponse) UnmarshalJSON(msg []byte) error {
 		return nil
 	default:
 		if len(tmp) != 0 {
-			s.Price = fmt.Sprintf("%f", tmp[1][2])
+			s.Bid = fmt.Sprintf("%f", tmp[1][0])
+			s.Ask = fmt.Sprintf("%f", tmp[1][2])
 			s.ChannelID = int(channel[0].(float64))
 		}
 	}

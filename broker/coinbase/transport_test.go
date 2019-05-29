@@ -24,8 +24,8 @@ func TestStart(t *testing.T) {
 	client.Start(ctx, productMap, doneCh)
 
 	mockResponse := &coinbase.TickerResponse{
-		Pair:  "MOCK-USD",
-		Price: "1000000.00",
+		Pair: "MOCK-USD",
+		Bid:  "1000000.00",
 	}
 	msg, err := json.Marshal(mockResponse)
 	if err != nil {
@@ -39,7 +39,7 @@ listener:
 	for {
 		select {
 		case quote := <-quoteCh:
-			if mockResponse.Pair != quote.HePair || mockResponse.Price != quote.Price {
+			if mockResponse.Pair != quote.HePair || mockResponse.Bid != quote.Bid {
 				t.Fatalf("Expecting response %#v but got %#v", mockResponse, quote)
 			}
 			break listener
