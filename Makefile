@@ -62,9 +62,7 @@ mysql:
 	@(mysql -u root -h 0.0.0.0 -P 33104 -p)
 
 # PROTO
-proto-js:
-	# @(protoc --proto_path=broker/wsapi/ --js_out=library=gen/arb,binary:broker/public/js/ broker/wsapi/arb.proto)
-	@(pbjs -t static-module -w commonjs -o broker/public/js/gen/arb.js broker/wsapi/arb.proto)
-	@(browserify broker/public/js/gen/arb.js -o broker/public/js/bundle.js)
+proto:
+	@(protoc --go_out=. broker/wsapi/*.proto)
 
-.PHONY: build build-broker dev-up dev-down run run-version run-broker run run-race up broker-logs down build-nginx lint unit unit-race test mysql proto-js
+.PHONY: build build-broker dev-up dev-down run run-version run-broker run run-race up broker-logs down build-nginx lint unit unit-race test mysql proto

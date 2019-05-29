@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -10,6 +9,7 @@ import (
 	"os/signal"
 	"strconv"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/gorilla/websocket"
 	"github.com/kaplanmaxe/helgart/broker/api"
 	"github.com/kaplanmaxe/helgart/broker/binance"
@@ -18,6 +18,7 @@ import (
 	"github.com/kaplanmaxe/helgart/broker/exchange"
 	"github.com/kaplanmaxe/helgart/broker/kraken"
 	"github.com/kaplanmaxe/helgart/broker/storage/mysql"
+	"github.com/kaplanmaxe/helgart/broker/wsapi"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -65,13 +66,14 @@ func (ws *websocketAPI) arbitrageHandler(w http.ResponseWriter, r *http.Request)
 	}
 	defer c.Close()
 	for market := range ws.arbCh {
-		// msg, err := ws.pbMarshalArbMarket(market)
-		// if err != nil {
-		// 	continue
-		// }
-		msg, err := json.Marshal(market)
-		// err = c.WriteMessage(websocket.BinaryMessage, msg)
-		err = c.WriteMessage(websocket.TextMessage, msg)
+		msg, err := ws.pbMarshalArbMarket(market)
+		if err != nil {
+			continue
+		}
+
+		err = c.WriteMessage(websocket.BinaryMessage, msg)
+		// msg, err := json.Marshal(market)
+		// err = c.WriteMessage(websocket.TextMessage, msg)
 		if err != nil {
 			fmt.Println("Closed")
 			break
@@ -79,25 +81,27 @@ func (ws *websocketAPI) arbitrageHandler(w http.ResponseWriter, r *http.Request)
 	}
 }
 
-// func (ws *websocketAPI) pbMarshalArbMarket(market *exchange.ArbMarket) ([]byte, error) {
-// 	pb := &wsapi.ArbMarket{
-// 		HePair: market.HePair,
-// 		Spread: market.Spread,
-// 		Low: &wsapi.ArbMarket_ActiveMarket{
-// 			Exchange: market.Low.Exchange,
-// 			HePair:   market.Low.HePair,
-// 			ExPair:   market.Low.ExPair,
-// 			Price:    fmt.Sprintf("%f", market.Low.Price),
-// 		},
-// 		High: &wsapi.ArbMarket_ActiveMarket{
-// 			Exchange: market.High.Exchange,
-// 			HePair:   market.High.HePair,
-// 			ExPair:   market.High.ExPair,
-// 			Price:    fmt.Sprintf("%f", market.High.Price),
-// 		},
-// 	}
-// 	return proto.Marshal(pb)
-// }
+func (ws *websocketAPI) pbMarshalArbMarket(market *exchange.ArbMarket) ([]byte, error) {
+	pb := &wsapi.ArbMarket{
+		HeBase: market.HeBase,
+		Spread: market.Spread,
+		Low: &wsapi.ArbMarket_ActiveMarket{
+			Exchange:          market.Low.Exchange,
+			HePair:            market.Low.HePair,
+			ExPair:            market.Low.ExPair,
+			Price:             fmt.Sprintf("%f", market.Low.Price),
+			TriangulatedPrice: fmt.Sprintf("%f", market.Low.TriangulatedPrice),
+		},
+		High: &wsapi.ArbMarket_ActiveMarket{
+			Exchange:          market.High.Exchange,
+			HePair:            market.High.HePair,
+			ExPair:            market.High.ExPair,
+			Price:             fmt.Sprintf("%f", market.High.Price),
+			TriangulatedPrice: fmt.Sprintf("%f", market.High.TriangulatedPrice),
+		},
+	}
+	return proto.Marshal(pb)
+}
 
 var rootCmd = &cobra.Command{
 	Use:   "start",
