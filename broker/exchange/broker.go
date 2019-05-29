@@ -237,7 +237,9 @@ func (b *Broker) insertMarketIntoMarketSide(side int, market *ActiveMarket) {
 	if side == BIDS {
 		for key, val := range b.ActiveMarkets[market.HeBase].Bids {
 			if market.Exchange == val.Exchange && market.HePair == val.HePair {
+
 				b.ActiveMarkets[market.HeBase].Bids[key].Price = market.Bid
+				b.calculatedTriangulatedPrice(&b.ActiveMarkets[market.HeBase].Bids[key], market.HeBase, market.HeQuote)
 				return
 			}
 		}
@@ -250,6 +252,7 @@ func (b *Broker) insertMarketIntoMarketSide(side int, market *ActiveMarket) {
 		for key, val := range b.ActiveMarkets[market.HeBase].Asks {
 			if market.Exchange == val.Exchange && market.HePair == val.HePair {
 				b.ActiveMarkets[market.HeBase].Asks[key].Price = market.Ask
+				b.calculatedTriangulatedPrice(&b.ActiveMarkets[market.HeBase].Asks[key], market.HeBase, market.HeQuote)
 				return
 			}
 		}
