@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"sync"
 
 	"github.com/golang/protobuf/proto"
 	"github.com/gorilla/websocket"
@@ -30,6 +31,9 @@ type websocketAPI struct {
 	errorCh        chan error
 	interruptCh    chan os.Signal
 	exchangeDoneCh chan struct{}
+	writeCh        chan []byte
+	mtx            *sync.Mutex
+	conns          []*websocket.Conn
 }
 
 var upgrader = websocket.Upgrader{
@@ -43,42 +47,65 @@ func (ws *websocketAPI) quoteHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer c.Close()
+loop:
 	for {
 		select {
 		case quote := <-ws.quoteCh:
 			err = c.WriteJSON(quote)
 			if err != nil {
-				fmt.Println("Closed")
-				break
+				break loop
 			}
 		case err := <-ws.errorCh:
 			log.Println(err)
-			break
+			break loop
 		}
 	}
 }
 
 func (ws *websocketAPI) arbitrageHandler(w http.ResponseWriter, r *http.Request) {
 	c, err := upgrader.Upgrade(w, r, nil)
+	go ws.writePump()
 	if err != nil {
 		log.Print("upgrade:", err)
 		return
 	}
+	ws.conns = append(ws.conns, c)
 	defer c.Close()
-	for market := range ws.arbCh {
-		msg, err := ws.pbMarshalArbMarket(market)
-		if err != nil {
-			continue
-		}
-
-		err = c.WriteMessage(websocket.BinaryMessage, msg)
-		// msg, err := json.Marshal(market)
-		// err = c.WriteMessage(websocket.TextMessage, msg)
-		if err != nil {
-			fmt.Println("Closed")
-			break
+loop:
+	for {
+		select {
+		case market := <-ws.arbCh:
+			msg, err := ws.pbMarshalArbMarket(market)
+			if err != nil {
+				continue
+			}
+			ws.writeCh <- msg
+		case err := <-ws.errorCh:
+			// TODO: send a message back to the client
+			log.Println(err)
+			break loop
 		}
 	}
+}
+
+func (ws *websocketAPI) writePump() {
+	for {
+		select {
+		case msg := <-ws.writeCh:
+			for key, val := range ws.conns {
+				ws.mtx.Lock()
+				err := val.WriteMessage(websocket.BinaryMessage, msg)
+				ws.mtx.Unlock()
+				if err != nil {
+					// Remove the connection from the slice
+					ws.conns[key] = nil
+					ws.conns[key] = ws.conns[len(ws.conns)-1]
+					ws.conns = ws.conns[:len(ws.conns)-1]
+				}
+			}
+		}
+	}
+
 }
 
 func (ws *websocketAPI) pbMarshalArbMarket(market *exchange.ArbMarket) ([]byte, error) {
@@ -118,13 +145,15 @@ var rootCmd = &cobra.Command{
 			errorCh:        make(chan error),
 			interruptCh:    make(chan os.Signal, 1),
 			exchangeDoneCh: make(chan struct{}),
+			writeCh:        make(chan []byte),
+			mtx:            &sync.Mutex{},
+			conns:          []*websocket.Conn{},
 		}
 		go func() {
 			http.HandleFunc("/ticker", ws.quoteHandler)
 			http.HandleFunc("/arb", ws.arbitrageHandler)
 			http.ListenAndServe(fmt.Sprintf("%s:%d", viper.Get("api.host"), viper.Get("api.port")), nil)
 		}()
-
 		db := mysql.NewClient(&mysql.Config{
 			Username: viper.Get("db.helgart_db_username").(string),
 			Password: viper.Get("db.helgart_db_password").(string),
@@ -169,7 +198,13 @@ var rootCmd = &cobra.Command{
 				if err != nil {
 					ws.errorCh <- err
 				}
-				// quote.PriceFloat = price
+				// Store the old high and low so we only send messages back to clients if a market has changed
+				pair := ws.broker.ActiveMarkets[quote.HeBase]
+				var oldHigh, oldLow float64
+				if pair != nil && len(pair.Bids) > 0 && len(pair.Asks) > 0 {
+					oldHigh = pair.Bids[0].TriangulatedPrice
+					oldLow = pair.Asks[0].TriangulatedPrice
+				}
 				ws.broker.InsertActiveMarket(&exchange.ActiveMarket{
 					Exchange: quote.Exchange,
 					HePair:   quote.HePair,
@@ -179,12 +214,18 @@ var rootCmd = &cobra.Command{
 					Bid:      bid,
 					Ask:      ask,
 				})
-				// var arbMarket exchange.ArbMarket
-				if len(ws.broker.ActiveMarkets[quote.HeBase].Bids) > 1 && len(ws.broker.ActiveMarkets[quote.HeBase].Asks) > 1 {
-					pair := ws.broker.ActiveMarkets[quote.HeBase]
+				if oldHigh == 0 && oldLow == 0 {
+					continue
+				}
+				if len(ws.broker.ActiveMarkets[quote.HeBase].Bids) > 1 && len(ws.broker.ActiveMarkets[quote.HeBase].Asks) > 1 &&
+					oldHigh != pair.Bids[0].TriangulatedPrice && oldLow != pair.Bids[0].TriangulatedPrice {
+					// pair := ws.broker.ActiveMarkets[quote.HeBase]
 					high := pair.Bids[0] // Sell at highest price
 					low := pair.Asks[0]  // Buy at lowest price
-					ws.arbCh <- exchange.NewArbMarket(quote.HeBase, low, high)
+					if market := exchange.NewArbMarket(quote.HeBase, low, high); market.Spread > 0 {
+						ws.arbCh <- market
+					}
+
 				}
 			}
 		}
