@@ -69,7 +69,7 @@ listener:
 	for {
 		select {
 		case quote := <-quoteCh:
-			if quote.Ask != "8114.900000" {
+			if quote.Ask != "8114.90000000" {
 				t.Fatalf("Expecting response %#v but got %#v", mockResponse, quote)
 			}
 			break listener
