@@ -5,10 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"net/url"
-	"sync"
 
 	"github.com/kaplanmaxe/helgart/broker/api"
 	"github.com/kaplanmaxe/helgart/broker/exchange"
@@ -47,62 +45,12 @@ func (c *Client) Start(ctx context.Context, productMap exchange.ProductMap, exch
 	if err != nil {
 		return err
 	}
-
-	doneCh, err := c.SendSubscribeRequest(c.FormatSubscribeRequest())
+	err = c.API.SendSubscribeRequest(c.FormatSubscribeRequest())
 	if err != nil {
 		return err
 	}
-	go func() {
-		<-doneCh
-		c.StartTickerListener(ctx, exchangeDoneCh)
-	}()
-
+	go c.StartTickerListener(ctx, exchangeDoneCh)
 	return nil
-}
-
-// SendSubscribeRequest overrides the interface method and sends a subscription request and listens
-// for a response
-func (c *Client) SendSubscribeRequest(req interface{}) (<-chan struct{}, error) {
-	doneCh := make(chan struct{})
-	payload, err := json.Marshal(req)
-	if err != nil {
-		return doneCh, fmt.Errorf("Error marshalling %s subscribe request: %s", c.exchangeName, err)
-	}
-	err = c.API.WriteMessage(payload)
-	if err != nil {
-		return doneCh, fmt.Errorf("Error sending subscribe request for %s: %s", c.exchangeName, err)
-	}
-	go func() {
-		var mtx sync.Mutex
-		subs := 0
-	Loop:
-		for {
-			message, err := c.API.ReadMessage()
-			if err != nil {
-				c.errorCh <- fmt.Errorf("Error reading message from %s: %s", c.exchangeName, err)
-				return
-			}
-
-			var subStatusResponse SubscriptionResponse
-
-			err = json.Unmarshal(message, &subStatusResponse)
-			if err != nil {
-				c.errorCh <- fmt.Errorf("Error unmarshalling from %s: %s", c.exchangeName, err)
-			}
-
-			if subs < len(c.Pairs) {
-				c.channelPairMap[subStatusResponse.ChannelID] = subStatusResponse.Pair
-			} else {
-				close(doneCh)
-				break Loop
-			}
-			mtx.Lock()
-			subs++
-			mtx.Unlock()
-		}
-		return
-	}()
-	return doneCh, nil
 }
 
 // FormatSubscribeRequest creates the type for a subscribe request
@@ -112,7 +60,7 @@ func (c *Client) FormatSubscribeRequest() interface{} {
 		Pair:  c.Pairs,
 		Subscription: struct {
 			Name string `json:"name"`
-		}{Name: TICKER},
+		}{Name: "spread"},
 	}
 }
 
@@ -121,12 +69,11 @@ func (c *Client) ParseTickerResponse(msg []byte) ([]exchange.Quote, error) {
 	var err error
 	var quotes []exchange.Quote
 
-	var res TickerResponse
+	var res SpreadResponse
 	err = json.Unmarshal(msg, &res)
 	if err != nil {
 		return []exchange.Quote{}, fmt.Errorf("Error unmarshalling from %s: %s", c.exchangeName, err)
 	}
-	c.getPair(&res)
 	if res.Pair != "" {
 		product := c.productMap[res.Pair]
 		quotes = append(quotes, exchange.Quote{
@@ -144,25 +91,13 @@ func (c *Client) ParseTickerResponse(msg []byte) ([]exchange.Quote, error) {
 	return quotes, nil
 }
 
-func (c *Client) getPair(res *TickerResponse) {
-	res.Pair = c.channelPairMap[res.ChannelID]
-}
-
 // StartTickerListener starts a new goroutine to listen for new ticker messages
 func (c *Client) StartTickerListener(ctx context.Context, doneCh chan<- struct{}) {
 cLoop:
 	for {
 		message, err := c.API.ReadMessage()
 		if err != nil {
-			log.Printf("There was a problem with %s. Attempting to reconnect now", c.exchangeName)
-			c.API.Close()
-			err := c.API.Connect(c.GetURL())
-			if err != nil {
-				c.errorCh <- fmt.Errorf("Error reading from %s: %s", c.exchangeName, err)
-				return
-			}
-			log.Printf("Reconnected to %s successfully!", c.exchangeName)
-
+			c.errorCh <- fmt.Errorf("Error reading from %s: %s", c.exchangeName, err)
 		}
 		select {
 		case <-ctx.Done():
@@ -187,7 +122,7 @@ cLoop:
 
 // GetURL returns the url for the websocket connection
 func (c *Client) GetURL() *url.URL {
-	return &url.URL{Scheme: "wss", Host: "ws.kraken.com"}
+	return &url.URL{Scheme: "wss", Host: "ws-beta.kraken.com"}
 }
 
 // GetPairs returns all pairs for an exchange
@@ -207,7 +142,9 @@ func (c *Client) GetPairs() error {
 	}
 	var pairs []string
 	for key := range pairsResponse.Result {
-		pairs = append(pairs, pairsResponse.Result[key].Pair)
+		if pairsResponse.Result[key].Pair != "" {
+			pairs = append(pairs, pairsResponse.Result[key].Pair)
+		}
 	}
 	c.Pairs = pairs
 	return nil

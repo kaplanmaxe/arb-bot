@@ -3,6 +3,7 @@ package kraken
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"strings"
 )
 
@@ -35,12 +36,13 @@ type SubscribeRequest struct {
 	} `json:"subscription"`
 }
 
-// TickerResponse is a response from the ws api with a tick
-type TickerResponse struct {
-	ChannelID int
+// SpreadResponse is a response from the ws api with a tick
+type SpreadResponse struct {
 	Pair      string
 	Bid       string
 	Ask       string
+	BidVolume string
+	AskVolume string
 }
 
 // SubscriptionResponse is a response after subscribing to an event
@@ -56,37 +58,37 @@ type SubscriptionResponse struct {
 // channelPairMap maps a channelid returned in the api to a specific pair
 type channelPairMap map[int]string
 
-type tickerResponse struct {
-	Ask []interface{} `json:"a"`
-	Bid []interface{} `json:"b"`
-}
-
 // UnmarshalJSON overrides UnmarshalJSON due to Kraken's weird output
-func (s *TickerResponse) UnmarshalJSON(msg []byte) error {
-	// Ignore heartbeats
+func (s *SpreadResponse) UnmarshalJSON(msg []byte) error {
+	// Ignore heartbeats, initial connection response, and subscription response
 	// TODO: can we be more efficient?
-	if strings.Contains(string(msg), "heartbeat") {
+	if strings.Contains(string(msg), "heartbeat") || strings.Contains(string(msg), "connectionID") ||
+		strings.Contains(string(msg), "channelID") {
 		return nil
 	}
 	var resp []json.RawMessage
 	err := json.Unmarshal(msg, &resp)
 	if err != nil {
-		return fmt.Errorf("Error unmarshalling kraken TickerResponse: %s", err)
+		log.Fatal(string(msg))
+		return fmt.Errorf("Error unmarshalling kraken SpreadResponse: %s", err)
 	}
-	var channel int
-	err = json.Unmarshal(resp[0], &channel)
+	var pair string
+	err = json.Unmarshal(resp[3], &pair)
 	if err != nil {
-		return fmt.Errorf("Error unmarshalling kraken TickerResponse: %s", err)
+		return fmt.Errorf("Error unmarshalling kraken SpreadResponse pair: %s", err)
 	}
-	s.ChannelID = channel
-	// Get Price
-	var tickerInfo tickerResponse
-	err = json.Unmarshal(resp[1], &tickerInfo)
+	// s.ChannelID = channel
+	// Get best bid and ask
+	var spread []string
+	err = json.Unmarshal(resp[1], &spread)
 	if err != nil {
-		return fmt.Errorf("Error unmarshalling kraken TickerResponse: %s", err)
+		return fmt.Errorf("Error unmarshalling kraken SpreadResponse spread: %s", err)
 	}
-	s.Ask = tickerInfo.Ask[0].(string)
-	s.Bid = tickerInfo.Bid[0].(string)
+	s.Pair = pair
+	s.Bid = spread[0]
+	s.Ask = spread[1]
+	s.BidVolume = spread[3]
+	s.AskVolume = spread[4]
 	return nil
 }
 
