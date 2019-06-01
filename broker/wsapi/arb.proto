@@ -14,3 +14,9 @@ message ArbMarket {
     ActiveMarket low = 3;
     ActiveMarket high = 4;
 }
+
+// ArbMarkets is sent to the client once only on initial connection
+// it returns the markets currently cached by broker
+message ArbMarkets {
+    repeated ArbMarket markets = 1;
+}

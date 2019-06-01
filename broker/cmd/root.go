@@ -24,6 +24,16 @@ import (
 	"github.com/spf13/viper"
 )
 
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool { return true }, // allow for browsers to connect
+}
+
+// Client represents a client connected to the wsapi
+type websocketClient struct {
+	conn   *websocket.Conn
+	sendCh chan *exchange.ArbMarket
+}
+
 type websocketAPI struct {
 	broker         *exchange.Broker
 	quoteCh        chan exchange.Quote
@@ -32,12 +42,9 @@ type websocketAPI struct {
 	interruptCh    chan os.Signal
 	exchangeDoneCh chan struct{}
 	writeCh        chan []byte
+	arbMap         map[string]*exchange.ArbMarket
 	mtx            *sync.Mutex
-	conns          []*websocket.Conn
-}
-
-var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true }, // allow for browsers to connect
+	conns          map[*websocket.Conn]*websocketClient
 }
 
 func (ws *websocketAPI) quoteHandler(w http.ResponseWriter, r *http.Request) {
@@ -55,60 +62,88 @@ loop:
 			if err != nil {
 				break loop
 			}
-		case err := <-ws.errorCh:
-			log.Println(err)
-			break loop
 		}
 	}
 }
 
 func (ws *websocketAPI) arbitrageHandler(w http.ResponseWriter, r *http.Request) {
 	c, err := upgrader.Upgrade(w, r, nil)
-	go ws.writePump()
+	client := &websocketClient{
+		conn:   c,
+		sendCh: make(chan *exchange.ArbMarket),
+	}
+	ws.conns[c] = client
+	// c.SetWriteDeadline(time.Now().Add(10 * time.Second))
+	// On initial connect we want to send clients all the current opportunites broker has found
+	markets, err := ws.marshalArbMarkets()
+	if err != nil {
+		// TODO: send message back to client
+		ws.errorCh <- fmt.Errorf("Error marshalling initial markets: %s", err)
+	}
+	ws.mtx.Lock()
+	err = c.WriteMessage(websocket.BinaryMessage, markets)
+	ws.mtx.Unlock()
+	// go ws.writePump(c)
 	if err != nil {
 		log.Print("upgrade:", err)
 		return
 	}
-	ws.conns = append(ws.conns, c)
+
 	defer c.Close()
-loop:
-	for {
-		select {
-		case market := <-ws.arbCh:
-			msg, err := ws.pbMarshalArbMarket(market)
-			if err != nil {
-				continue
-			}
-			ws.writeCh <- msg
-		case err := <-ws.errorCh:
-			// TODO: send a message back to the client
-			log.Println(err)
-			break loop
+
+	for market := range client.sendCh {
+		msg, err := ws.marshalArbMarket(market)
+		if err != nil {
+			continue
+		}
+		// TODO: should we care about the error here? I don't think so but maybe
+		c.WriteMessage(websocket.BinaryMessage, msg)
+
+		// ws.writeCh <- msg
+	}
+}
+
+func (ws *websocketAPI) writePump(c *websocket.Conn) {
+	for msg := range ws.writeCh {
+		ws.mtx.Lock()
+		err := c.WriteMessage(websocket.BinaryMessage, msg)
+		ws.mtx.Unlock()
+		if err != nil {
+			break
+			// log.Println("Error sending inital markets message")
 		}
 	}
 }
 
-func (ws *websocketAPI) writePump() {
-	for {
-		select {
-		case msg := <-ws.writeCh:
-			for key, val := range ws.conns {
-				ws.mtx.Lock()
-				err := val.WriteMessage(websocket.BinaryMessage, msg)
-				ws.mtx.Unlock()
-				if err != nil {
-					// Remove the connection from the slice
-					ws.conns[key] = nil
-					ws.conns[key] = ws.conns[len(ws.conns)-1]
-					ws.conns = ws.conns[:len(ws.conns)-1]
-				}
-			}
-		}
+func (ws *websocketAPI) marshalArbMarkets() ([]byte, error) {
+	var markets []*wsapi.ArbMarket
+	for _, val := range ws.arbMap {
+		markets = append(markets, &wsapi.ArbMarket{
+			HeBase: val.HeBase,
+			Spread: val.Spread,
+			Low: &wsapi.ArbMarket_ActiveMarket{
+				Exchange:          val.Low.Exchange,
+				HePair:            val.Low.HePair,
+				ExPair:            val.Low.ExPair,
+				Price:             fmt.Sprintf("%8.8f", val.Low.Price),
+				TriangulatedPrice: fmt.Sprintf("%8.8f", val.Low.TriangulatedPrice),
+			},
+			High: &wsapi.ArbMarket_ActiveMarket{
+				Exchange:          val.High.Exchange,
+				HePair:            val.High.HePair,
+				ExPair:            val.High.ExPair,
+				Price:             fmt.Sprintf("%8.8f", val.High.Price),
+				TriangulatedPrice: fmt.Sprintf("%8.8f", val.High.TriangulatedPrice),
+			},
+		})
 	}
-
+	pb := &wsapi.ArbMarkets{
+		Markets: markets,
+	}
+	return proto.Marshal(pb)
 }
 
-func (ws *websocketAPI) pbMarshalArbMarket(market *exchange.ArbMarket) ([]byte, error) {
+func (ws *websocketAPI) marshalArbMarket(market *exchange.ArbMarket) ([]byte, error) {
 	pb := &wsapi.ArbMarket{
 		HeBase: market.HeBase,
 		Spread: market.Spread,
@@ -116,75 +151,59 @@ func (ws *websocketAPI) pbMarshalArbMarket(market *exchange.ArbMarket) ([]byte, 
 			Exchange:          market.Low.Exchange,
 			HePair:            market.Low.HePair,
 			ExPair:            market.Low.ExPair,
-			Price:             fmt.Sprintf("%f", market.Low.Price),
-			TriangulatedPrice: fmt.Sprintf("%f", market.Low.TriangulatedPrice),
+			Price:             fmt.Sprintf("%8.8f", market.Low.Price),
+			TriangulatedPrice: fmt.Sprintf("%8.8f", market.Low.TriangulatedPrice),
 		},
 		High: &wsapi.ArbMarket_ActiveMarket{
 			Exchange:          market.High.Exchange,
 			HePair:            market.High.HePair,
 			ExPair:            market.High.ExPair,
-			Price:             fmt.Sprintf("%f", market.High.Price),
-			TriangulatedPrice: fmt.Sprintf("%f", market.High.TriangulatedPrice),
+			Price:             fmt.Sprintf("%8.8f", market.High.Price),
+			TriangulatedPrice: fmt.Sprintf("%8.8f", market.High.TriangulatedPrice),
 		},
 	}
 	return proto.Marshal(pb)
 }
 
-var rootCmd = &cobra.Command{
-	Use:   "start",
-	Short: "Start starts the broker service",
-	Long:  `broker fetches cryptocurrency markets and potentially exposes a websocket API`,
-	Run: func(cmd *cobra.Command, args []string) {
-		if err := viper.ReadInConfig(); err != nil {
-			log.Fatalf("Can't read config: %s", err)
-			os.Exit(1)
-		}
-		ws := &websocketAPI{
-			quoteCh:        make(chan exchange.Quote),
-			arbCh:          make(chan *exchange.ArbMarket),
-			errorCh:        make(chan error),
-			interruptCh:    make(chan os.Signal, 1),
-			exchangeDoneCh: make(chan struct{}),
-			writeCh:        make(chan []byte),
-			mtx:            &sync.Mutex{},
-			conns:          []*websocket.Conn{},
-		}
-		go func() {
-			http.HandleFunc("/ticker", ws.quoteHandler)
-			http.HandleFunc("/arb", ws.arbitrageHandler)
-			http.ListenAndServe(fmt.Sprintf("%s:%d", viper.Get("api.host"), viper.Get("api.port")), nil)
-		}()
-		db := mysql.NewClient(&mysql.Config{
-			Username: viper.Get("db.helgart_db_username").(string),
-			Password: viper.Get("db.helgart_db_password").(string),
-			DBName:   viper.Get("db.helgart_db_name").(string),
-			Host:     viper.Get("db.helgart_db_host").(string),
-			Port:     viper.Get("db.helgart_db_port").(int),
-		})
-		err := db.Connect()
-		if err != nil {
-			log.Fatal(err)
-		}
+func (ws *websocketAPI) serveWS() {
+	http.HandleFunc("/ticker", ws.quoteHandler)
+	http.HandleFunc("/arb", ws.arbitrageHandler)
+	http.ListenAndServe(fmt.Sprintf("%s:%d", viper.Get("api.host"), viper.Get("api.port")), nil)
+}
 
-		log.Print("Starting quote server")
-		doneCh := make(chan struct{}, 1)
-		signal.Notify(ws.interruptCh, os.Interrupt)
-		ctx, cancel := context.WithCancel(context.Background())
-		exchanges := []exchange.Exchange{
-			binance.NewClient(api.NewWebSocketHelper(exchange.BINANCE), ws.quoteCh, ws.errorCh),
-			kraken.NewClient(api.NewWebSocketHelper(exchange.KRAKEN), ws.quoteCh, ws.errorCh),
-			coinbase.NewClient(api.NewWebSocketHelper(exchange.COINBASE), ws.quoteCh, ws.errorCh),
-			bitfinex.NewClient(api.NewWebSocketHelper(exchange.BITFINEX), ws.quoteCh, ws.errorCh),
-		}
-		ws.broker = exchange.NewBroker(exchanges, db)
-		err = ws.broker.Start(ctx, ws.exchangeDoneCh)
+func (ws *websocketAPI) connectDB() (exchange.ProductStorage, error) {
+	db := mysql.NewClient(&mysql.Config{
+		Username: viper.Get("db.helgart_db_username").(string),
+		Password: viper.Get("db.helgart_db_password").(string),
+		DBName:   viper.Get("db.helgart_db_name").(string),
+		Host:     viper.Get("db.helgart_db_host").(string),
+		Port:     viper.Get("db.helgart_db_port").(int),
+	})
+	err := db.Connect()
+	if err != nil {
+		return nil, err
+	}
+	return db, nil
+}
 
-		if err != nil {
-			log.Fatal(err)
-		}
+func (ws *websocketAPI) getExchanges() []exchange.Exchange {
+	return []exchange.Exchange{
+		binance.NewClient(api.NewWebSocketHelper(exchange.BINANCE), ws.quoteCh, ws.errorCh),
+		kraken.NewClient(api.NewWebSocketHelper(exchange.KRAKEN), ws.quoteCh, ws.errorCh),
+		coinbase.NewClient(api.NewWebSocketHelper(exchange.COINBASE), ws.quoteCh, ws.errorCh),
+		bitfinex.NewClient(api.NewWebSocketHelper(exchange.BITFINEX), ws.quoteCh, ws.errorCh),
+	}
+}
 
-		// quoteHandler
-		for quote := range ws.quoteCh {
+func (ws *websocketAPI) startBroker(ctx context.Context, exchanges []exchange.Exchange, db exchange.ProductStorage) error {
+	ws.broker = exchange.NewBroker(exchanges, db)
+	return ws.broker.Start(ctx, ws.exchangeDoneCh)
+}
+
+func (ws *websocketAPI) startBrokerPump() {
+	for {
+		select {
+		case quote := <-ws.quoteCh:
 			if _, ok := ws.broker.ArbProducts[quote.HeBase]; ok {
 				// TODO: investigate this bug where coinbase returns no price for MKR-BTC
 				if quote.Ask == "" || quote.Bid == "" {
@@ -214,22 +233,81 @@ var rootCmd = &cobra.Command{
 					Bid:      bid,
 					Ask:      ask,
 				})
+				// Not sure why this is here?
 				if oldHigh == 0 && oldLow == 0 {
 					continue
 				}
+				// If there is more than one quote and the best bid or ask has changed, we perform an update operation
 				if len(ws.broker.ActiveMarkets[quote.HeBase].Bids) > 1 && len(ws.broker.ActiveMarkets[quote.HeBase].Asks) > 1 &&
 					oldHigh != pair.Bids[0].TriangulatedPrice && oldLow != pair.Bids[0].TriangulatedPrice {
-					// pair := ws.broker.ActiveMarkets[quote.HeBase]
 					high := pair.Bids[0] // Sell at highest price
 					low := pair.Asks[0]  // Buy at lowest price
-					if market := exchange.NewArbMarket(quote.HeBase, low, high); market.Spread > 0 {
-						ws.arbCh <- market
+					if market := exchange.NewArbMarket(quote.HeBase, low, high); market.Spread >= 0.01 {
+						ws.arbMap[market.HeBase] = market
+						for _, client := range ws.conns {
+							if _, ok := ws.conns[client.conn]; ok {
+								client.sendCh <- market
+							} else {
+								delete(ws.conns, client.conn)
+								close(client.sendCh)
+							}
+
+						}
+						// ws.arbCh <- market
 					}
 
 				}
 			}
+		case err := <-ws.errorCh:
+			// TODO: send a message back to the client
+			log.Println(err)
+			break
+		}
+	}
+}
+
+var rootCmd = &cobra.Command{
+	Use:   "start",
+	Short: "Start starts the broker service",
+	Long:  `broker fetches cryptocurrency markets and potentially exposes a websocket API`,
+	Run: func(cmd *cobra.Command, args []string) {
+		if err := viper.ReadInConfig(); err != nil {
+			log.Fatalf("Can't read config: %s", err)
+			os.Exit(1)
+		}
+		ws := &websocketAPI{
+			quoteCh:        make(chan exchange.Quote),
+			arbCh:          make(chan *exchange.ArbMarket),
+			errorCh:        make(chan error),
+			interruptCh:    make(chan os.Signal, 1),
+			exchangeDoneCh: make(chan struct{}),
+			writeCh:        make(chan []byte),
+			arbMap:         make(map[string]*exchange.ArbMarket),
+			mtx:            &sync.Mutex{},
+			conns:          make(map[*websocket.Conn]*websocketClient),
+		}
+		// Start websocket API
+		go ws.serveWS()
+		// Connect to db
+		db, err := ws.connectDB()
+		if err != nil {
+			log.Fatal(err)
 		}
 
+		// Interrupt handler logic
+		log.Print("Starting quote server")
+		doneCh := make(chan struct{}, 1)
+		signal.Notify(ws.interruptCh, os.Interrupt)
+		ctx, cancel := context.WithCancel(context.Background())
+
+		// Start broker
+		exchanges := ws.getExchanges()
+		err = ws.startBroker(ctx, exchanges, db)
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		ws.startBrokerPump()
 		// interrupt handler
 		go func() {
 			<-ws.interruptCh

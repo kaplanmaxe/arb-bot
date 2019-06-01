@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"sync"
@@ -42,7 +43,7 @@ func (c *Client) Start(ctx context.Context, productMap exchange.ProductMap, exch
 	if err != nil {
 		return err
 	}
-	c.API.Connect(c.GetURL())
+	err = c.API.Connect(c.GetURL())
 	if err != nil {
 		return err
 	}
@@ -153,8 +154,15 @@ cLoop:
 	for {
 		message, err := c.API.ReadMessage()
 		if err != nil {
-			c.errorCh <- fmt.Errorf("Error reading from %s: %s", c.exchangeName, err)
-			return
+			log.Printf("There was a problem with %s. Attempting to reconnect now", c.exchangeName)
+			c.API.Close()
+			err := c.API.Connect(c.GetURL())
+			if err != nil {
+				c.errorCh <- fmt.Errorf("Error reading from %s: %s", c.exchangeName, err)
+				return
+			}
+			log.Printf("Reconnected to %s successfully!", c.exchangeName)
+
 		}
 		select {
 		case <-ctx.Done():
