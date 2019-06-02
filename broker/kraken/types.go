@@ -3,7 +3,6 @@ package kraken
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"strings"
 )
 
@@ -69,7 +68,6 @@ func (s *SpreadResponse) UnmarshalJSON(msg []byte) error {
 	var resp []json.RawMessage
 	err := json.Unmarshal(msg, &resp)
 	if err != nil {
-		log.Fatal(string(msg))
 		return fmt.Errorf("Error unmarshalling kraken SpreadResponse: %s", err)
 	}
 	var pair string

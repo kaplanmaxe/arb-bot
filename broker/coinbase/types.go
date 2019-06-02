@@ -51,6 +51,22 @@ type TickerResponse struct {
 	Bid  string `json:"best_bid"`
 }
 
+// SnapshotResponse is the intial response coinbase sends to you on the level2 channel
+type SnapshotResponse struct {
+	Type string     `json:"type"`
+	Pair string     `json:"product_id"`
+	Bids [][]string `json:"bids"`
+	Asks [][]string `json:"asks"`
+}
+
+// LevelTwoResponse is a response from the level2 channel on coinbase's api
+// TODO: do all these types have to be exported?
+type LevelTwoResponse struct {
+	Type    string     `json:"type"`
+	Pair    string     `json:"product_id"`
+	Changes [][]string `json:"changes"`
+}
+
 type productsResponse struct {
 	Pair          string `json:"id"`
 	BaseCurrency  string `json:"base_currency"`

@@ -42,6 +42,7 @@ func (s *TickerResponse) UnmarshalJSON(msg []byte) error {
 		return nil
 	default:
 		if len(tmp) != 0 {
+			// TODO: why the conversion to string?
 			s.Bid = fmt.Sprintf("%8.8f", tmp[1][0])
 			s.Ask = fmt.Sprintf("%8.8f", tmp[1][2])
 			s.ChannelID = int(channel[0].(float64))

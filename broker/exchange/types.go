@@ -15,3 +15,12 @@ type Exchange interface {
 	GetURL() *url.URL
 	ParseTickerResponse(msg []byte) ([]Quote, error)
 }
+
+// OrderBook holds the bids and asks for a given pair
+type OrderBook struct {
+	Bids *SpreadStack
+	Asks *SpreadStack
+}
+
+// OrderBookMap holds a stack of bids and asks with the pair as the key
+type OrderBookMap map[string]OrderBook
