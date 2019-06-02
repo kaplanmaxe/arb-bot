@@ -211,7 +211,11 @@ func (c *Client) ParseTickerResponse(message []byte) ([]exchange.Quote, error) {
 					})
 				}
 			}
-
+			// TODO: orderbook is empty. We need to unsubscribe than resubscribe
+			if len(c.orderBookMap[response.Pair].Bids.Nodes) == 0 || len(c.orderBookMap[response.Pair].Asks.Nodes) == 0 {
+				log.Printf("Orderbook on %s is empty for %s\n", c.exchangeName, response.Pair)
+				return []exchange.Quote{}, nil
+			}
 			if c.orderBookMap[response.Pair].Bids.Nodes[0].Price > cachedBestBid ||
 				c.orderBookMap[response.Pair].Asks.Nodes[0].Price < cachedBestAsk {
 
