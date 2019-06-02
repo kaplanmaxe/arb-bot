@@ -146,6 +146,7 @@ func (c *Client) GetPairs() error {
 			pairs = append(pairs, pairsResponse.Result[key].Pair)
 		}
 	}
-	c.Pairs = pairs
+	// c.Pairs = pairs
+	c.Pairs = []string{"XBT/USD", "XBT/CAD", "ETH/USD", "ETH/CAD", "XRP/USD", "XRP/CAD"}
 	return nil
 }
