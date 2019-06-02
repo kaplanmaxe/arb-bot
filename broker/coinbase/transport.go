@@ -15,6 +15,8 @@ import (
 	"github.com/kaplanmaxe/helgart/broker/exchange"
 )
 
+const orderBookLength = 100
+
 // Client represents an API client
 type Client struct {
 	pairs        []string
@@ -116,14 +118,14 @@ func (c *Client) ParseTickerResponse(message []byte) ([]exchange.Quote, error) {
 		// Initialize bids and asks stacks
 		if _, ok := c.orderBookMap[snapshotResponse.Pair]; !ok {
 			pair := c.orderBookMap[snapshotResponse.Pair]
-			pair.Bids = exchange.NewSpreadStack(100, "bid")
-			pair.Asks = exchange.NewSpreadStack(100, "ask")
+			pair.Bids = exchange.NewSpreadStack(orderBookLength, "bid")
+			pair.Asks = exchange.NewSpreadStack(orderBookLength, "ask")
 			c.orderBookMap[snapshotResponse.Pair] = pair
 		}
 		// Initialize bid side
 		var length int
-		if len(snapshotResponse.Bids) >= 20 {
-			length = 20
+		if len(snapshotResponse.Bids) >= orderBookLength {
+			length = orderBookLength
 		} else {
 			length = len(snapshotResponse.Bids)
 		}
@@ -141,8 +143,8 @@ func (c *Client) ParseTickerResponse(message []byte) ([]exchange.Quote, error) {
 				Size:  size,
 			})
 		}
-		if len(snapshotResponse.Asks) >= 20 {
-			length = 20
+		if len(snapshotResponse.Asks) >= orderBookLength {
+			length = orderBookLength
 		} else {
 			length = len(snapshotResponse.Asks)
 		}
@@ -181,7 +183,7 @@ func (c *Client) ParseTickerResponse(message []byte) ([]exchange.Quote, error) {
 			}
 			// TODO: orderbook is empty. We need to unsubscribe than resubscribe
 			if len(c.orderBookMap[response.Pair].Bids.Nodes) == 0 || len(c.orderBookMap[response.Pair].Asks.Nodes) == 0 {
-				log.Printf("Orderbook on %s is empty for %s\n", c.exchangeName, response.Pair)
+				log.Fatalf("Orderbook on %s is empty for %s\n", c.exchangeName, response.Pair)
 				return []exchange.Quote{}, nil
 			}
 			cachedBestBid := c.orderBookMap[response.Pair].Bids.Nodes[0].Price
@@ -198,6 +200,13 @@ func (c *Client) ParseTickerResponse(message []byte) ([]exchange.Quote, error) {
 						Price: price,
 						Size:  size,
 					})
+				} else if len(buySide.Nodes) == 0 {
+					// If nothing left in the book, we gotta add one price
+					// TODO: unsubscribe and resubscribe
+					buySide.Push(&exchange.SpreadNode{
+						Price: price,
+						Size:  size,
+					})
 				}
 			} else if val[0] == "sell" {
 				if size == 0 {
@@ -209,11 +218,18 @@ func (c *Client) ParseTickerResponse(message []byte) ([]exchange.Quote, error) {
 						Price: price,
 						Size:  size,
 					})
+				} else if len(sellSide.Nodes) == 0 {
+					// If nothing left in the book, we gotta add one price
+					// TODO: unsubscribe and resubscribe
+					sellSide.Push(&exchange.SpreadNode{
+						Price: price,
+						Size:  size,
+					})
 				}
 			}
 			// TODO: orderbook is empty. We need to unsubscribe than resubscribe
 			if len(c.orderBookMap[response.Pair].Bids.Nodes) == 0 || len(c.orderBookMap[response.Pair].Asks.Nodes) == 0 {
-				log.Printf("Orderbook on %s is empty for %s\n", c.exchangeName, response.Pair)
+				log.Fatalf("Orderbook on %s is empty for %s\n", c.exchangeName, response.Pair)
 				return []exchange.Quote{}, nil
 			}
 			if c.orderBookMap[response.Pair].Bids.Nodes[0].Price > cachedBestBid ||
