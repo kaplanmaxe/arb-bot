@@ -1,7 +1,6 @@
 package exchange
 
 import (
-	"fmt"
 	"sort"
 )
 
@@ -71,9 +70,6 @@ func (s *SpreadStack) Pop(price float64) {
 			s.Nodes = s.Nodes[:len(s.Nodes)-1]
 			break
 		}
-	}
-	if len(s.Nodes) == 0 {
-		fmt.Println("WHOA")
 	}
 	s.sort()
 }

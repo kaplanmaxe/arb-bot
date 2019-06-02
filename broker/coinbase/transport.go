@@ -116,8 +116,8 @@ func (c *Client) ParseTickerResponse(message []byte) ([]exchange.Quote, error) {
 		// Initialize bids and asks stacks
 		if _, ok := c.orderBookMap[snapshotResponse.Pair]; !ok {
 			pair := c.orderBookMap[snapshotResponse.Pair]
-			pair.Bids = exchange.NewSpreadStack(40, "bid")
-			pair.Asks = exchange.NewSpreadStack(40, "ask")
+			pair.Bids = exchange.NewSpreadStack(100, "bid")
+			pair.Asks = exchange.NewSpreadStack(100, "ask")
 			c.orderBookMap[snapshotResponse.Pair] = pair
 		}
 		// Initialize bid side
@@ -179,6 +179,11 @@ func (c *Client) ParseTickerResponse(message []byte) ([]exchange.Quote, error) {
 			if err != nil {
 				return []exchange.Quote{}, fmt.Errorf("Error reading new quote from %s", c.exchangeName)
 			}
+			// TODO: orderbook is empty. We need to unsubscribe than resubscribe
+			if len(c.orderBookMap[response.Pair].Bids.Nodes) == 0 || len(c.orderBookMap[response.Pair].Asks.Nodes) == 0 {
+				log.Printf("Orderbook on %s is empty for %s\n", c.exchangeName, response.Pair)
+				return []exchange.Quote{}, nil
+			}
 			cachedBestBid := c.orderBookMap[response.Pair].Bids.Nodes[0].Price
 			cachedBestAsk := c.orderBookMap[response.Pair].Asks.Nodes[0].Price
 			buySide := c.orderBookMap[response.Pair].Bids
@@ -206,11 +211,7 @@ func (c *Client) ParseTickerResponse(message []byte) ([]exchange.Quote, error) {
 					})
 				}
 			}
-			// TODO: how does this get empty?
-			if len(c.orderBookMap[response.Pair].Bids.Nodes) == 0 || len(c.orderBookMap[response.Pair].Asks.Nodes) == 0 {
-				log.Printf("Orderbook on %s is empty for %s\n", c.exchangeName, response.Pair)
-				return []exchange.Quote{}, nil
-			}
+
 			if c.orderBookMap[response.Pair].Bids.Nodes[0].Price > cachedBestBid ||
 				c.orderBookMap[response.Pair].Asks.Nodes[0].Price < cachedBestAsk {
 
