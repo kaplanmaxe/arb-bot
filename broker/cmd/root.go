@@ -98,8 +98,6 @@ func (ws *websocketAPI) arbitrageHandler(w http.ResponseWriter, r *http.Request)
 		}
 		// TODO: should we care about the error here? I don't think so but maybe
 		c.WriteMessage(websocket.BinaryMessage, msg)
-
-		// ws.writeCh <- msg
 	}
 }
 
@@ -110,7 +108,6 @@ func (ws *websocketAPI) writePump(c *websocket.Conn) {
 		ws.mtx.Unlock()
 		if err != nil {
 			break
-			// log.Println("Error sending inital markets message")
 		}
 	}
 }
@@ -217,13 +214,6 @@ func (ws *websocketAPI) startBrokerPump() {
 				if err != nil {
 					ws.errorCh <- err
 				}
-				// Store the old high and low so we only send messages back to clients if a market has changed
-				pair := ws.broker.ActiveMarkets[quote.HeBase]
-				var oldHigh, oldLow float64
-				if pair != nil && len(pair.Bids) > 0 && len(pair.Asks) > 0 {
-					oldHigh = pair.Bids[0].TriangulatedPrice
-					oldLow = pair.Asks[0].TriangulatedPrice
-				}
 				ws.broker.InsertActiveMarket(&exchange.ActiveMarket{
 					Exchange: quote.Exchange,
 					HePair:   quote.HePair,
@@ -233,17 +223,18 @@ func (ws *websocketAPI) startBrokerPump() {
 					Bid:      bid,
 					Ask:      ask,
 				})
-				// Not sure why this is here?
-				if oldHigh == 0 && oldLow == 0 {
-					continue
-				}
 				// If there is more than one quote and the best bid or ask has changed, we perform an update operation
-				if len(ws.broker.ActiveMarkets[quote.HeBase].Bids) > 1 && len(ws.broker.ActiveMarkets[quote.HeBase].Asks) > 1 &&
-					oldHigh != pair.Bids[0].TriangulatedPrice && oldLow != pair.Bids[0].TriangulatedPrice {
-					high := pair.Bids[0] // Sell at highest price
-					low := pair.Asks[0]  // Buy at lowest price
+				if len(ws.broker.ActiveMarkets[quote.HeBase].Bids) > 0 && len(ws.broker.ActiveMarkets[quote.HeBase].Asks) > 0 {
+
+					high := ws.broker.ActiveMarkets[quote.HeBase].Bids[0] // Sell at highest price
+					low := ws.broker.ActiveMarkets[quote.HeBase].Asks[0]  // Buy at lowest price
 					if market := exchange.NewArbMarket(quote.HeBase, low, high); market.Spread >= 0.01 {
+						// TODO: why are we getting duplicates?
+						if val, ok := ws.arbMap[market.HeBase]; ok && market.Spread == val.Spread {
+							continue
+						}
 						ws.arbMap[market.HeBase] = market
+
 						for _, client := range ws.conns {
 							if _, ok := ws.conns[client.conn]; ok {
 								client.sendCh <- market
@@ -253,7 +244,6 @@ func (ws *websocketAPI) startBrokerPump() {
 							}
 
 						}
-						// ws.arbCh <- market
 					}
 
 				}

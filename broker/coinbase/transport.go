@@ -15,7 +15,7 @@ import (
 	"github.com/kaplanmaxe/helgart/broker/exchange"
 )
 
-const orderBookLength = 100
+const orderBookLength = 500
 
 // Client represents an API client
 type Client struct {
