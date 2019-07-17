@@ -122,7 +122,7 @@ cLoop:
 
 // GetURL returns the url for the websocket connection
 func (c *Client) GetURL() *url.URL {
-	return &url.URL{Scheme: "wss", Host: "ws-beta.kraken.com"}
+	return &url.URL{Scheme: "wss", Host: "ws.kraken.com"}
 }
 
 // GetPairs returns all pairs for an exchange
